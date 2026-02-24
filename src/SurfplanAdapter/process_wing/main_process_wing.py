@@ -504,6 +504,21 @@ def correcting_wingtip_by_adding_ribs(
     )
     return ribs_data
 
+def filter_wingtip(wingtip):
+    """
+    Filter the wingtip list so that its spanwise coordinates are strictly ascending
+    """
+    ## Filter the wingtip list so that its spanwise coordinates are strictly increasing
+    filtered_wingtip = []
+    prev_y = None
+
+    for segment in wingtip[::-1]:
+        current_y = segment[0][0]  # Spanwise coordinate
+        if prev_y is None or current_y > prev_y:
+            filtered_wingtip.append(segment)
+            prev_y = current_y
+
+    return filtered_wingtip[::-1], len(filtered_wingtip)
 
 def main(
     surfplan_txt_file_path: Path,
@@ -622,6 +637,8 @@ def main(
         )
 
     ## ADDING WINGTIPS, if described in surfplan txt export file
+    wingtip, n_wingtip_segments = filter_wingtip(wingtip)
+
     if len(wingtip) > 0:
         ribs_data = correcting_wingtip_by_adding_ribs(
             wingtip,
