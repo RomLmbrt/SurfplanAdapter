@@ -490,8 +490,9 @@ def correcting_wingtip_by_adding_ribs(
                 "airfoil_id": profile_outer_rib_id,
             }
         )
-    right_wing_tip_additions.insert(0, existing_outer_right_rib)
-    left_wing_tip_additions.append(existing_outer_left_rib)
+
+    left_wing_tip_additions.insert(0, existing_outer_left_rib)
+    right_wing_tip_additions.append(existing_outer_right_rib)
     ## concetanating the ribs data
     ribs_data = np.concatenate(
         [
