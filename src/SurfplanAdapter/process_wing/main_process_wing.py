@@ -274,7 +274,7 @@ def correcting_wingtip_by_adding_ribs(
     profile_save_dir,
     le_tube,
     kite_dir_path,
-    n_profiles,
+    n_ribs,
     ribs_data,
     profile_load_dir=None,  # new argument for fallback
 ):
@@ -305,7 +305,8 @@ def correcting_wingtip_by_adding_ribs(
             f"Profile {profile_name} not found in processed or data directory."
         )
 
-    profile_name_outer = f"prof_{int(n_profiles-1)}.dat"
+    profile_outer_rib_id = int(n_ribs // 2) if n_ribs % 2 == 0 else int(n_ribs // 2) + 1
+    profile_name_outer = f"prof_{profile_outer_rib_id}.dat"
     profile_path = get_profile_path(
         profile_name_outer, profile_save_dir, profile_load_dir
     )
@@ -333,7 +334,7 @@ def correcting_wingtip_by_adding_ribs(
     # breakpoint()
     ##############################
 
-    profile_name_tip = f"prof_{n_profiles}.dat"
+    profile_name_tip = f"prof_{profile_outer_rib_id}.dat"
     profile_path = get_profile_path(
         profile_name_tip, profile_save_dir, profile_load_dir
     )
@@ -364,8 +365,7 @@ def correcting_wingtip_by_adding_ribs(
     )
     # saving these again as .dat files
     for i, wingtip_point_list in enumerate(wingtip_point_lists):
-        n_profile = n_profiles + i
-        profile_name = f"prof_{n_profile}.dat"
+        profile_name = f"prof_{profile_outer_rib_id}.dat"
         profile_path = Path(profile_save_dir) / profile_name
         os.makedirs(profile_path.parent, exist_ok=True)
         with open(profile_path, "w") as file:
@@ -451,6 +451,7 @@ def correcting_wingtip_by_adding_ribs(
                 "chord": chord_i,
                 "te_tension": te_tension_i,
                 "le_tension": le_tension_i,
+                "airfoil_id": profile_outer_rib_id,
             }
         )
     # excluding the tips as the LEs are wrong
@@ -486,6 +487,7 @@ def correcting_wingtip_by_adding_ribs(
                 "chord": chord_i,
                 "te_tension": te_tension_i,
                 "le_tension": le_tension_i,
+                "airfoil_id": profile_outer_rib_id,
             }
         )
     right_wing_tip_additions.insert(0, existing_outer_right_rib)
@@ -541,25 +543,33 @@ def main(
     is_strut = False
     point_list_list = []
     ribs_data = []
+    n_profiles = int(n_ribs // 2)
     for i in range(n_ribs):
         # Rib position
         rib_le = ribs[i][0]
         rib_te = ribs[i][1]
         # Tube diameter
         tube_diameter_i = le_tube_without_wingtips[i]
+
         # Associate each rib with its airfoil .dat file name
-        k = n_ribs // 2
-        # First case, kite has one central rib
-        if n_ribs % 2 == 1:
-            profile_name = f"prof_{1 +abs(-k+i)}"
-        # Second case, kite has two central ribs
-        else:
-            if i < k:
-                profile_name = f"prof_{k-i}"
+        # Goal: produce a symmetric sequence around the center like
+        # N, N-1, ..., 1, 0, 1, ..., N (for odd total ribs)
+        # For even total ribs this will produce a double-centre 0, e.g. N..1,0,0,1..N
+        # Robust approach: compute distance to the center index and clamp to valid range.
+
+        # Add an airfoil_id to each rib, we should start from the number_of_profiles and then count down
+        # So it should be 18,17,16, ..., 1, 0, 1, 2, ..., 17, 18
+
+        if n_ribs % 2 == 1: # First case, kite has one central rib
+            profile_id = 1 +abs(-n_profiles+i)
+        else: # Second case, kite has two central ribs
+            if i < n_profiles:
+                profile_id = n_profiles-i
             else:
-                profile_name = f"prof_{i-k+1}"
+                profile_id = i-n_profiles+1
+
         # Read camber height from .dat airfoil file
-        profile_path = Path(profile_load_dir) / f"{profile_name}.dat"
+        profile_path = Path(profile_load_dir) / f"prof_{profile_id}.dat"
         # airfoil, point_list = reading_profile_from_airfoil_dat_files(
         #     profile_path,
         #     is_return_point_list=True,
@@ -596,6 +606,7 @@ def main(
             "te_tension": airfoil["lambda_val"],
             "le_tension": airfoil["phi_val"],
             "rib_index": i,
+            "airfoil_id": profile_id,
         }
 
         if is_strut:
@@ -603,7 +614,11 @@ def main(
 
         ribs_data.append(rib_entry)
 
-    n_profiles = int(n_ribs // 2)
+    for i, rib in enumerate(ribs_data):
+        print(
+            f"Sorted Rib {i}: airfoil_id: {rib['airfoil_id']}, d_tube_from_surfplan_txt: {rib['d_tube_from_surfplan_txt']}, chord: {rib['chord']}, LE[y]: {rib['LE'][0]}"
+        )
+
     ## ADDING WINGTIPS, if described in surfplan txt export file
     if len(wingtip) > 0:
         ribs_data = correcting_wingtip_by_adding_ribs(
@@ -612,7 +627,7 @@ def main(
             profile_save_dir,
             le_tube,
             kite_dir_path,
-            n_profiles,
+            n_ribs,
             ribs_data,
             profile_load_dir=profile_load_dir,  # pass for fallback
         )
@@ -656,27 +671,6 @@ def main(
 
     # Sort ribs data by proximity
     ribs_data_sorted = _sort_ribs_by_proximity(ribs_data)
-
-    # Add an airfoil_id to each rib.
-    # Goal: produce a symmetric sequence around the center like
-    # N, N-1, ..., 1, 0, 1, ..., N (for odd total ribs)
-    # For even total ribs this will produce a double-centre 0, e.g. N..1,0,0,1..N
-    # Robust approach: compute distance to the center index and clamp to valid range.
-
-    # Add an airfoil_id to each rib, we should start from the number_of_profiles and then count down
-    # So it should be 18,17,16, ..., 1, 0, 1, 2, ..., 17, 18
-
-    for i, rib in enumerate(ribs_data_sorted):
-        # Calculate the airfoil_id based on the index
-        if i < n_profiles_incl_wingtip_segments:
-            rib["airfoil_id"] = n_profiles_incl_wingtip_segments - i
-        else:
-            rib["airfoil_id"] = (i + 1) - n_profiles_incl_wingtip_segments
-
-    for i, rib in enumerate(ribs_data_sorted):
-        print(
-            f"Sorted Rib {i}: airfoil_id: {rib['airfoil_id']}, d_tube_from_surfplan_txt: {rib['d_tube_from_surfplan_txt']}, chord: {rib['chord']}, LE[y]: {rib['LE'][0]}"
-        )
 
     ## Transform data into VSM coordinate system
     for rib in ribs_data_sorted:
