@@ -560,7 +560,8 @@ def main(
     is_strut = False
     point_list_list = []
     ribs_data = []
-    n_profiles = int(n_ribs // 2)
+    k = int(n_ribs // 2)
+    n_profiles = k if n_ribs % 2 == 0 else k + 1
     for i in range(n_ribs):
         # Rib position
         rib_le = ribs[i][0]
@@ -578,12 +579,12 @@ def main(
         # So it should be 18,17,16, ..., 1, 0, 1, 2, ..., 17, 18
 
         if n_ribs % 2 == 1: # First case, kite has one central rib
-            profile_id = 1 +abs(-n_profiles+i)
+            profile_id = 1 +abs(-k+i)
         else: # Second case, kite has two central ribs
-            if i < n_profiles:
-                profile_id = n_profiles-i
+            if i < k:
+                profile_id = k-i
             else:
-                profile_id = i-n_profiles+1
+                profile_id = i-k+1
 
         # Read camber height from .dat airfoil file
         profile_path = Path(profile_load_dir) / f"prof_{profile_id}.dat"
