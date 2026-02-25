@@ -113,7 +113,7 @@ def main(filepath):
                 cleaned_parts[7] if len(cleaned_parts) > 7 else None, 0.0
             )
             diameter = _to_float(
-                cleaned_parts[9] if len(cleaned_parts) > 9 else None, 0.002
+                cleaned_parts[9] * 0.001 if len(cleaned_parts) > 9 else None, 0.002 # Diameters are in millimeters in the SurfPlan export file
             )
 
             bridle_line = [point1, point2, name, length, diameter]
