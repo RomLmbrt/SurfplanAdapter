@@ -85,7 +85,6 @@ dependencies = [
   "matplotlib>=3.7.1",
   "pyyaml",
   "scipy",
-  "VSM @ git+https://github.com/awegroup/Vortex-Step-Method.git",
 ]
 
 # You can define additional groups of dependencies here (e.g., development dependencies).
