@@ -108,14 +108,23 @@ def main(filepath):
                 else f"line_{len(bridle_lines)+1}"
             )
 
-            # Extract length and diameter using consistent default handling
+            # Extract length using consistent default handling
             length = _to_float(
                 cleaned_parts[7] if len(cleaned_parts) > 7 else None, 0.0
             )
+
+            # Extract material from column 9 (index 8) - keep exactly as-is
+            material = (
+                cleaned_parts[8].strip()
+                if len(cleaned_parts) > 8 and cleaned_parts[8].strip()
+                else None
+            )
+
+            # Extract diameter using consistent default handling
             diameter = _to_float(cleaned_parts[9], None) if len(cleaned_parts) > 9 else None
             diameter = diameter * 0.001 if diameter is not None else 0.002 # Diameters are in millimeters in the SurfPlan export file
 
-            bridle_line = [point1, point2, name, length, diameter]
+            bridle_line = [point1, point2, name, length, material, diameter]
             bridle_lines.append(bridle_line)
 
     if len(bridle_lines) > 0:
@@ -123,7 +132,10 @@ def main(filepath):
             [
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[0]),  # point1
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[1]),  # point2
-                bridle_line[4],  # diameter (float)
+                bridle_line[5],  # diameter (float)
+                bridle_line[2],  # name
+                bridle_line[3],  # length (float)
+                bridle_line[4],  # material
             ]
             for bridle_line in bridle_lines
         ]
