@@ -12,6 +12,10 @@ from SurfplanAdapter.process_wing import (
 )
 from SurfplanAdapter.generate_yaml import utils
 from SurfplanAdapter.generate_yaml import create_struc_geometry_yaml
+from SurfplanAdapter.utils import (
+    compute_midspan_chord_alignment_rotation_about_y,
+    rotate_coordinate_around_y_vsm,
+)
 
 
 def create_wing_dict(wing_sections, wing_airfoils):
@@ -124,6 +128,25 @@ def main(
     """
     # Save YAML file
     os.makedirs(yaml_file_path.parent, exist_ok=True)
+
+    # Additional pure rotation around y_vsm:
+    # align +x_vsm with the LE->TE direction at mid-span (interpolated if needed).
+    y_rotation_rad = compute_midspan_chord_alignment_rotation_about_y(ribs_data)
+
+    for rib in ribs_data:
+        rib["LE"] = rotate_coordinate_around_y_vsm(rib["LE"], y_rotation_rad)
+        rib["TE"] = rotate_coordinate_around_y_vsm(rib["TE"], y_rotation_rad)
+        rib["VUP"] = rotate_coordinate_around_y_vsm(rib["VUP"], y_rotation_rad)
+        # Keep the applied frame rotation available for downstream processing.
+        rib["vsm_y_rotation_rad"] = y_rotation_rad
+
+    for bridle_line in bridle_lines:
+        bridle_line[0] = rotate_coordinate_around_y_vsm(
+            bridle_line[0], y_rotation_rad
+        )
+        bridle_line[1] = rotate_coordinate_around_y_vsm(
+            bridle_line[1], y_rotation_rad
+        )
 
     # Create wing dict
     wing_sections = generate_wing_sections_data.main(ribs_data)

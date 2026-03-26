@@ -92,3 +92,76 @@ def transform_coordinate_system_surfplan_to_VSM(coord_surfplan):
     coord_vsm = np.dot(R, coord_surfplan)
 
     return coord_vsm
+
+
+def rotate_coordinate_around_y_vsm(coord_vsm, angle_rad):
+    """
+    Rotate a VSM coordinate around the global y-axis by angle_rad.
+
+    This is a pure rotation (no translation), so y remains unchanged while
+    x and z are rotated in the x-z plane.
+    """
+    c = np.cos(angle_rad)
+    s = np.sin(angle_rad)
+    R_y = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+    return np.dot(R_y, np.asarray(coord_vsm, dtype=float))
+
+
+def _interpolated_midspan_le_te_points(ribs_data, tol=1e-9):
+    """
+    Get LE/TE points at y=0 using interpolation between closest negative and
+    positive spanwise ribs when an exact mid-span rib is not present.
+    """
+    samples = []
+    for rib in ribs_data:
+        if "LE" not in rib or "TE" not in rib:
+            continue
+        le = np.asarray(rib["LE"], dtype=float)
+        te = np.asarray(rib["TE"], dtype=float)
+        if le.shape != (3,) or te.shape != (3,):
+            continue
+        y_span = 0.5 * (le[1] + te[1])
+        samples.append((float(y_span), le, te))
+
+    if not samples:
+        return None, None
+
+    closest = min(samples, key=lambda item: abs(item[0]))
+    if abs(closest[0]) <= tol:
+        return closest[1], closest[2]
+
+    negatives = [item for item in samples if item[0] < 0.0]
+    positives = [item for item in samples if item[0] > 0.0]
+
+    if negatives and positives:
+        y_neg, le_neg, te_neg = max(negatives, key=lambda item: item[0])
+        y_pos, le_pos, te_pos = min(positives, key=lambda item: item[0])
+        denom = y_pos - y_neg
+        if abs(denom) > tol:
+            t = -y_neg / denom
+            le_mid = le_neg + t * (le_pos - le_neg)
+            te_mid = te_neg + t * (te_pos - te_neg)
+            return le_mid, te_mid
+
+    # Fallback for one-sided or pathological data: use nearest available rib.
+    return closest[1], closest[2]
+
+
+def compute_midspan_chord_alignment_rotation_about_y(ribs_data, tol=1e-9):
+    """
+    Compute a yaw angle around y_vsm that aligns +x_vsm with the mid-span chord
+    direction (LE->TE) projected onto the x-z plane.
+    """
+    le_mid, te_mid = _interpolated_midspan_le_te_points(ribs_data, tol=tol)
+    if le_mid is None or te_mid is None:
+        return 0.0
+
+    chord = np.asarray(te_mid - le_mid, dtype=float)
+    chord_x = chord[0]
+    chord_z = chord[2]
+    if np.hypot(chord_x, chord_z) <= tol:
+        return 0.0
+
+    # After rotation by theta about y:
+    # z' = -sin(theta)*x + cos(theta)*z = 0  -> theta = atan2(z, x)
+    return float(np.arctan2(chord_z, chord_x))

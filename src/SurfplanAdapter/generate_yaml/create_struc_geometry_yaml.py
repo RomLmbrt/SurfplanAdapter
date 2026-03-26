@@ -10,7 +10,10 @@ from SurfplanAdapter.process_wing import (
     generate_wing_airfoils_data,
 )
 from SurfplanAdapter.generate_yaml import utils
-from SurfplanAdapter.utils import transform_coordinate_system_surfplan_to_VSM
+from SurfplanAdapter.utils import (
+    rotate_coordinate_around_y_vsm,
+    transform_coordinate_system_surfplan_to_VSM,
+)
 
 
 def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
@@ -489,6 +492,7 @@ def _build_strut_tubes(ribs_data, node_map):
         le_node = node_map[idx]["LE"]
         te_node = node_map[idx]["TE"]
         le_diameter = _calculate_le_diameter(rib)
+        y_rotation_rad = float(rib.get("vsm_y_rotation_rad", 0.0))
 
         strut_samples = rib.get("strut_samples") or []
         strut_diam_le = None
@@ -500,6 +504,7 @@ def _build_strut_tubes(ribs_data, node_map):
             for sample in strut_samples:
                 center = np.array(sample["center"], dtype=float)
                 center_vsm = transform_coordinate_system_surfplan_to_VSM(center)
+                center_vsm = rotate_coordinate_around_y_vsm(center_vsm, y_rotation_rad)
                 transformed_samples.append((center_vsm, float(sample["diameter"])))
 
             strut_diam_te = min(
