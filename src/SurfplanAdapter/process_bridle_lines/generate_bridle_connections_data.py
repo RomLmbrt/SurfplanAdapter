@@ -5,7 +5,8 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
 
     Parameters:
         bridle_lines: List of bridle line data from main_process_surfplan
-                     Each bridle_line is [point1, point2, name, length, diameter]
+                     Canonical: [point1, point2, name, length, diameter, material]
+                     Legacy supported: [point1, point2, diameter, name, length, material]
         bridle_nodes_data: Bridle nodes data to reference node IDs
 
     Returns:
@@ -27,7 +28,14 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
 
     for i, bridle_line in enumerate(bridle_lines):
         if bridle_line and len(bridle_line) >= 5:
-            p1, p2, name = bridle_line[0], bridle_line[1], bridle_line[2]
+            p1, p2 = bridle_line[0], bridle_line[1]
+            if isinstance(bridle_line[2], str):
+                name = bridle_line[2]
+            elif len(bridle_line) > 3 and isinstance(bridle_line[3], str):
+                # Backwards-compatibility for legacy swapped ordering.
+                name = bridle_line[3]
+            else:
+                name = f"line_{i + 1}"
 
             # Find corresponding node IDs for original connections
             p1_tuple = (float(p1[0]), float(p1[1]), float(p1[2]))

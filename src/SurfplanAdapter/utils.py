@@ -165,3 +165,139 @@ def compute_midspan_chord_alignment_rotation_about_y(ribs_data, tol=1e-9):
     # After rotation by theta about y:
     # z' = -sin(theta)*x + cos(theta)*z = 0  -> theta = atan2(z, x)
     return float(np.arctan2(chord_z, chord_x))
+
+
+PALETTE = {
+    "Black": "#000000",
+    "Orange": "#E69F00",
+    "Sky Blue": "#56B4E9",
+    "Bluish Green": "#009E73",
+    "Yellow": "#F0E442",
+    "Blue": "#0072B2",
+    "Vermillion": "#D55E00",
+    "Reddish Purple": "#CC79A7",
+}
+
+
+def hex_to_rgba(hex_color, alpha=1.0):
+    """Convert a hex color to RGBA values in [0, 1]."""
+    hex_color = hex_color.lstrip("#")
+    value_len = len(hex_color)
+    rgb = tuple(
+        int(hex_color[i : i + value_len // 3], 16) / 255.0
+        for i in range(0, value_len, value_len // 3)
+    )
+    return rgb + (alpha,)
+
+
+def get_color(color_name, alpha=1.0):
+    """Return RGBA for a named palette color (defaults to black)."""
+    return hex_to_rgba(PALETTE.get(color_name, "#000000"), alpha)
+
+
+def get_color_list():
+    """Return the default plotting palette as hex strings."""
+    return list(PALETTE.values())
+
+
+def visualize_palette():
+    """Show the configured color palette."""
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(20, 2))
+    for i, (color_name, color_hex) in enumerate(PALETTE.items()):
+        ax.add_patch(plt.Rectangle((i * 2, 0), 2, 2, color=color_hex))
+        ax.text(
+            i * 2 + 1,
+            1,
+            color_name,
+            color="white",
+            ha="center",
+            va="center",
+            fontsize=12,
+            fontweight="bold",
+        )
+    ax.set_xlim(0, 2 * len(PALETTE))
+    ax.set_ylim(0, 2)
+    ax.axis("off")
+    plt.show()
+
+
+def set_plot_style(use_latex=False):
+    """
+    Set matplotlib defaults for SurfplanAdapter plots.
+
+    By default this keeps LaTeX disabled so new users do not need a TeX installation.
+    Set ``use_latex=True`` to enable TeX rendering when available.
+    """
+    import matplotlib.pyplot as plt
+    from cycler import cycler
+
+    color_cycle = [
+        PALETTE["Black"],
+        PALETTE["Orange"],
+        PALETTE["Sky Blue"],
+        PALETTE["Bluish Green"],
+        PALETTE["Yellow"],
+        PALETTE["Blue"],
+        PALETTE["Vermillion"],
+        PALETTE["Reddish Purple"],
+    ]
+
+    plt.rcParams.update(
+        {
+            "text.usetex": bool(use_latex),
+            "font.family": "serif",
+            "font.serif": (
+                ["Computer Modern Roman"] if use_latex else ["DejaVu Serif"]
+            ),
+            "axes.titlesize": 15,
+            "axes.labelsize": 13,
+            "axes.linewidth": 1.0,
+            "axes.edgecolor": "#C5C5C5",
+            "axes.labelcolor": "black",
+            "axes.autolimit_mode": "round_numbers",
+            "axes.xmargin": 0,
+            "axes.ymargin": 0,
+            "axes.grid": True,
+            "axes.grid.axis": "both",
+            "grid.alpha": 0.5,
+            "grid.color": "#C5C5C5",
+            "grid.linestyle": "-",
+            "grid.linewidth": 1.0,
+            "lines.linewidth": 1,
+            "lines.markersize": 6,
+            "figure.titlesize": 15,
+            "pgf.texsystem": "pdflatex",
+            "pgf.rcfonts": False,
+            "figure.figsize": (15, 5),
+            "axes.prop_cycle": cycler("color", color_cycle),
+            "xtick.color": "#C5C5C5",
+            "ytick.color": "#C5C5C5",
+            "xtick.labelcolor": "black",
+            "ytick.labelcolor": "black",
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+            "xtick.top": True,
+            "xtick.bottom": True,
+            "ytick.left": True,
+            "ytick.right": True,
+            "xtick.direction": "in",
+            "ytick.direction": "in",
+            "legend.fontsize": 15,
+        }
+    )
+
+
+def set_plot_style_no_latex():
+    """Convenience wrapper for style without TeX dependency."""
+    set_plot_style(use_latex=False)
+
+
+def apply_palette(ax, colors=None):
+    """Apply a sequence of colors to existing lines on a matplotlib axis."""
+    if colors is None:
+        colors = get_color_list()
+    for line, color in zip(ax.get_lines(), colors):
+        line.set_color(color)
+    ax.figure.canvas.draw_idle()

@@ -149,17 +149,12 @@ def main(
     wing_airfoils = generate_wing_airfoils_data.main(ribs_data, airfoil_type)
 
     # Sort wing_airfoils["data"], such that we are left only with ribs where a LAP is present
-    # Build lookups of airfoil_id -> list of spanwise positions / chord lengths to assist ordering.
+    # Build lookups of airfoil_id -> spanwise positions to assist ordering.
     airfoil_id_to_spans = {}
-    airfoil_id_to_chords = {}
     for section in wing_sections["data"]:
         airfoil_id = section[0]
         span = section[2]
-        le = np.array(section[1:4], dtype=float)
-        te = np.array(section[4:7], dtype=float)
-        chord = float(np.linalg.norm(te - le))
         airfoil_id_to_spans.setdefault(airfoil_id, []).append(span)
-        airfoil_id_to_chords.setdefault(airfoil_id, []).append(chord)
     wing_airfoils_data_struts_only = []
     n_airfoils = len(wing_airfoils["data"])
     rib_indices_with_LAPS = []
@@ -170,34 +165,9 @@ def main(
             wing_airfoils_data_struts_only.append(entry)
             rib_indices_with_LAPS.append(i + 1)
 
-    # Ensure both spanwise tips are included even if they are not struts
-    if wing_sections["data"]:
-        airfoil_id_to_index = {
-            entry[0]: idx for idx, entry in enumerate(wing_airfoils["data"], start=1)
-        }
-
-        tip_candidates_negative = []
-        tip_candidates_positive = []
-        for airfoil_id, spans in airfoil_id_to_spans.items():
-            chord = min(airfoil_id_to_chords.get(airfoil_id, [float("inf")]))
-            if any(span <= 0 for span in spans):
-                tip_candidates_negative.append((chord, airfoil_id))
-            if any(span >= 0 for span in spans):
-                tip_candidates_positive.append((chord, airfoil_id))
-
-        tip_airfoil_ids = set()
-        if tip_candidates_negative:
-            tip_airfoil_ids.add(min(tip_candidates_negative)[1])
-        if tip_candidates_positive:
-            tip_airfoil_ids.add(min(tip_candidates_positive)[1])
-
-        for tip_airfoil_id in tip_airfoil_ids:
-            tip_index = airfoil_id_to_index.get(tip_airfoil_id)
-            if tip_index and tip_index not in rib_indices_with_LAPS:
-                wing_airfoils_data_struts_only.append(
-                    wing_airfoils["data"][tip_index - 1]
-                )
-                rib_indices_with_LAPS.append(tip_index)
+    # Keep only ribs with line-attachment points (LAPs) for struc_geometry.yaml.
+    # Do not auto-add tip ribs here, because duplicated tip airfoil_ids can pull in
+    # many non-attached wing nodes.
 
     # Sort the filtered airfoil entries by their spanwise position (use the minimum span if duplicated)
     wing_airfoils_data_struts_only.sort(

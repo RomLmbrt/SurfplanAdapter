@@ -14,14 +14,15 @@ def main(filepath):
       - diameter: the value in the 'Diameter' column
 
     Each bridle line is stored as:
-        bridle_line = [point1, point2, name, length, diameter]
+        bridle_line = [point1, point2, name, length, diameter, material]
     and all such lines are collected in a list which is returned.
 
     Parameters:
         filepath (str): Path to the Surfplan .txt file.
 
     Returns:
-        list: A list of bridle lines, each as [point1, point2, name, length, diameter].
+        list: A list of bridle lines, each as
+              [point1, point2, name, length, diameter, material].
               If a field is empty, default values are used.
     """
     # Define which column indices contain numeric data that need cleaning
@@ -41,7 +42,7 @@ def main(filepath):
     with open(filepath, "r", encoding="utf-8") as file:
         lines = file.readlines()
 
-    for line in lines:
+    for line_num, line in enumerate(lines, start=1):
         line = line.strip()
         if not line:
             continue
@@ -70,7 +71,7 @@ def main(filepath):
                 raw_parts = line.split(",")
             else:
                 raise ValueError(
-                    f"Unexpected delimiter in bridle line at line {line_num + 1}: {line}"
+                    f"Unexpected delimiter in bridle line at line {line_num}: {line}"
                 )
             cleaned_parts = []
             for i, part in enumerate(raw_parts):
@@ -121,8 +122,11 @@ def main(filepath):
             )
 
             # Extract diameter using consistent default handling
-            diameter = _to_float(cleaned_parts[9], None) if len(cleaned_parts) > 9 else None
-            diameter = diameter * 0.001 if diameter is not None else 0.002 # Diameters are in millimeters in the SurfPlan export file
+            diameter = (
+                _to_float(cleaned_parts[9], None) if len(cleaned_parts) > 9 else None
+            )
+            # Diameters are in mm in Surfplan exports; store internally in meters.
+            diameter = diameter * 0.001 if diameter is not None else 0.002
 
             bridle_line = [point1, point2, name, length, material, diameter]
             bridle_lines.append(bridle_line)
@@ -132,9 +136,9 @@ def main(filepath):
             [
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[0]),  # point1
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[1]),  # point2
-                bridle_line[5],  # diameter (float)
                 bridle_line[2],  # name
                 bridle_line[3],  # length (float)
+                bridle_line[5],  # diameter [m] (float)
                 bridle_line[4],  # material
             ]
             for bridle_line in bridle_lines

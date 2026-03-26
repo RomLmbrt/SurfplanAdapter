@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from VSM.plot_styling import set_plot_style
+from SurfplanAdapter.utils import set_plot_style
 from SurfplanAdapter.find_airfoil_parameters import utils_lei_parametric_copy
 
 
@@ -98,7 +98,7 @@ def plot_all_airfoils(yaml_path, output_path=None, surfplan_airfoils_dir=None):
         Directory containing CAD-sliced airfoil .dat files (named prof_1.dat, prof_2.dat, etc.)
     """
     # Apply plot styling
-    set_plot_style()
+    set_plot_style(use_latex=False)
 
     # Extract airfoils from YAML
     airfoils = extract_airfoils_from_yaml(yaml_path)

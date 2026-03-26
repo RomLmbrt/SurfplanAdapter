@@ -133,8 +133,8 @@ plot_struc_geometry_yaml(
 
 ## Plot Styling
 
-The module uses `VSM.plot_styling.set_plot_style()` for consistent formatting:
-- LaTeX-style font rendering
+The module uses `SurfplanAdapter.utils.set_plot_style()` for consistent formatting:
+- LaTeX-style font rendering (optional, disabled by default)
 - Publication-quality figures
 - Consistent colors and line widths
 - Grid and axis styling
@@ -157,7 +157,7 @@ Supported output formats:
 
 ## Notes
 
-- All plots use VSM styling for consistency
+- Plots use SurfplanAdapter-local styling utilities for consistency
 - 3D plots support interactive rotation
 - PDF outputs suitable for publication
 - Handles missing data gracefully
