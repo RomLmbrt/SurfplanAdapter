@@ -2,27 +2,329 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from pathlib import Path
+from collections import defaultdict
+
+
+def _safe_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _get_header_map(table):
+    headers = table.get("headers", []) if isinstance(table, dict) else []
+    return {str(name): idx for idx, name in enumerate(headers)}
+
+
+def _extract_is_strut_flags(wing_sections, wing_airfoils):
+    """
+    Build per-section strut flags from wing_airfoils info_dict['is_strut'].
+    """
+    if not wing_airfoils:
+        return np.array([False for _ in wing_sections], dtype=bool)
+
+    airfoil_is_strut = {}
+    for row in wing_airfoils:
+        if not row:
+            continue
+        airfoil_id = row[0]
+        info_dict = row[2] if len(row) > 2 and isinstance(row[2], dict) else {}
+        airfoil_is_strut[airfoil_id] = bool(info_dict.get("is_strut", False))
+
+    return np.array(
+        [bool(airfoil_is_strut.get(section[0], False)) for section in wing_sections]
+    )
+
+
+def _extract_bridle_mass_nodes(config):
+    """
+    Convert bridle line masses into lumped node masses.
+
+    Returns
+    -------
+    tuple
+        (bridle_nodes, total_bridle_mass, n_bridle_segments)
+        where bridle_nodes is a list of [position, mass].
+    """
+    bridle_nodes_table = config.get("bridle_nodes") or config.get("bridle_particles")
+    bridle_lines_table = config.get("bridle_lines")
+    bridle_connections_table = config.get("bridle_connections")
+
+    if not (bridle_nodes_table and bridle_lines_table and bridle_connections_table):
+        return [], 0.0, 0
+
+    node_headers = _get_header_map(bridle_nodes_table)
+    line_headers = _get_header_map(bridle_lines_table)
+    conn_headers = _get_header_map(bridle_connections_table)
+
+    node_id_idx = node_headers.get("id", 0)
+    node_x_idx = node_headers.get("x", 1)
+    node_y_idx = node_headers.get("y", 2)
+    node_z_idx = node_headers.get("z", 3)
+    node_type_idx = node_headers.get("type", None)
+
+    conn_name_idx = conn_headers.get("name", 0)
+    conn_ci_idx = conn_headers.get("ci", 1)
+    conn_cj_idx = conn_headers.get("cj", 2)
+
+    line_name_idx = line_headers.get("name", 0)
+    line_rest_length_idx = line_headers.get("rest_length", 1)
+    line_diameter_idx = line_headers.get("diameter", 2)
+    line_material_idx = line_headers.get("material", 3)
+    line_density_idx = line_headers.get("density", None)
+
+    node_coords = {}
+    node_types = {}
+    for row in bridle_nodes_table.get("data", []):
+        if not row:
+            continue
+        node_id = int(row[node_id_idx])
+        node_coords[node_id] = np.array(
+            [
+                _safe_float(row[node_x_idx], 0.0),
+                _safe_float(row[node_y_idx], 0.0),
+                _safe_float(row[node_z_idx], 0.0),
+            ],
+            dtype=float,
+        )
+        if node_type_idx is not None and len(row) > node_type_idx:
+            node_types[node_id] = str(row[node_type_idx]).lower()
+
+    if not node_coords:
+        return [], 0.0, 0
+
+    material_density_lookup = {}
+    for key, value in config.items():
+        if isinstance(value, dict) and "density" in value:
+            material_density_lookup[str(key)] = _safe_float(value.get("density"), 0.0)
+
+    line_properties = {}
+    for row in bridle_lines_table.get("data", []):
+        if not row:
+            continue
+        line_name = str(row[line_name_idx])
+        rest_length = _safe_float(row[line_rest_length_idx], 0.0)
+        diameter = _safe_float(row[line_diameter_idx], 0.002)
+        if diameter > 0.05:
+            diameter /= 1000.0
+
+        material = (
+            str(row[line_material_idx])
+            if line_material_idx is not None and len(row) > line_material_idx
+            else "dyneema"
+        )
+        density = (
+            _safe_float(row[line_density_idx], 0.0)
+            if line_density_idx is not None and len(row) > line_density_idx
+            else 0.0
+        )
+        if density <= 0.0:
+            density = material_density_lookup.get(material, 970.0)
+
+        line_properties[line_name] = {
+            "rest_length": rest_length,
+            "diameter": diameter if diameter > 0 else 0.002,
+            "density": density if density > 0 else 970.0,
+        }
+
+    bridle_mass_by_node = defaultdict(float)
+    total_bridle_mass = 0.0
+    n_bridle_segments = 0
+
+    for row in bridle_connections_table.get("data", []):
+        if not row:
+            continue
+        line_name = str(row[conn_name_idx])
+        ci = int(row[conn_ci_idx])
+        cj = int(row[conn_cj_idx])
+
+        if ci not in node_coords or cj not in node_coords:
+            continue
+
+        line_prop = line_properties.get(line_name)
+        if line_prop is None:
+            continue
+
+        geometric_length = float(np.linalg.norm(node_coords[cj] - node_coords[ci]))
+        segment_length = (
+            line_prop["rest_length"]
+            if line_prop["rest_length"] > 0
+            else geometric_length
+        )
+        if segment_length <= 0:
+            continue
+
+        area = np.pi * (line_prop["diameter"] * 0.5) ** 2
+        segment_mass = line_prop["density"] * area * segment_length
+
+        bridle_mass_by_node[ci] += 0.5 * segment_mass
+        bridle_mass_by_node[cj] += 0.5 * segment_mass
+        total_bridle_mass += segment_mass
+        n_bridle_segments += 1
+
+    pulley_mass = _safe_float(config.get("pulley_mass"), 0.0)
+    if pulley_mass > 0:
+        for node_id, node_type in node_types.items():
+            if node_type == "pulley":
+                bridle_mass_by_node[node_id] += pulley_mass
+                total_bridle_mass += pulley_mass
+
+    bridle_nodes = [
+        [node_coords[node_id], node_mass]
+        for node_id, node_mass in bridle_mass_by_node.items()
+        if node_mass > 0
+    ]
+
+    return bridle_nodes, total_bridle_mass, n_bridle_segments
+
+
+def _select_bridle_source_config(primary_config, yaml_file_path):
+    """
+    Resolve config source for bridle data.
+
+    If the primary file has no bridle sections (e.g. aero_geometry.yaml),
+    fall back to sibling config_kite.yaml when available.
+    """
+    if all(
+        key in primary_config for key in ("bridle_lines", "bridle_connections")
+    ) and any(key in primary_config for key in ("bridle_nodes", "bridle_particles")):
+        return primary_config, str(yaml_file_path)
+
+    sibling_config_path = Path(yaml_file_path).with_name("config_kite.yaml")
+    if sibling_config_path.exists():
+        with open(sibling_config_path, "r") as f:
+            sibling_config = yaml.safe_load(f)
+        if (
+            sibling_config
+            and all(
+                key in sibling_config for key in ("bridle_lines", "bridle_connections")
+            )
+            and any(
+                key in sibling_config for key in ("bridle_nodes", "bridle_particles")
+            )
+        ):
+            return sibling_config, str(sibling_config_path)
+
+    return {}, None
+
+
+def _extract_tube_data(struc_config):
+    """
+    Extract LE tube and strut tube geometry from struc_geometry_all_in_surfplan config.
+
+    Returns
+    -------
+    dict or None
+        Dict with 'le_node_positions' (list of (position, diameter)) and
+        'struts' (list of dicts with pos_le, pos_te, diam_le, diam_te, length),
+        or None if data is not available.
+    """
+    if not struc_config:
+        return None
+
+    wing_particles = struc_config.get("wing_particles")
+    le_tubes = struc_config.get("leading_edge_tubes")
+    strut_tubes_table = struc_config.get("strut_tubes")
+
+    if not (wing_particles and le_tubes):
+        return None
+
+    # Build node position lookup
+    wp_headers = _get_header_map(wing_particles)
+    node_coords = {}
+    for row in wing_particles.get("data", []):
+        node_id = int(row[wp_headers.get("id", 0)])
+        node_coords[node_id] = np.array(
+            [
+                _safe_float(row[wp_headers.get("x", 1)]),
+                _safe_float(row[wp_headers.get("y", 2)]),
+                _safe_float(row[wp_headers.get("z", 3)]),
+            ]
+        )
+
+    # Extract LE node diameters from tube segments
+    le_headers = _get_header_map(le_tubes)
+    le_node_diameters = defaultdict(list)
+
+    for row in le_tubes.get("data", []):
+        ci = int(row[le_headers.get("ci", 1)])
+        cj = int(row[le_headers.get("cj", 2)])
+        diameter = _safe_float(row[le_headers.get("diameter", 3)])
+        le_node_diameters[ci].append(diameter)
+        le_node_diameters[cj].append(diameter)
+
+    # Build (position, diameter) for each LE node
+    le_node_positions = []
+    for node_id, diams in le_node_diameters.items():
+        if node_id in node_coords:
+            le_node_positions.append((node_coords[node_id], float(np.mean(diams))))
+
+    # Extract strut data
+    struts = []
+    if strut_tubes_table:
+        st_headers = _get_header_map(strut_tubes_table)
+        for row in strut_tubes_table.get("data", []):
+            ci = int(row[st_headers.get("ci", 1)])
+            cj = int(row[st_headers.get("cj", 2)])
+            diam_le = _safe_float(row[st_headers.get("strut_diam_le", 3)])
+            diam_te = _safe_float(row[st_headers.get("strut_diam_te", 4)])
+            if ci in node_coords and cj in node_coords:
+                length = float(np.linalg.norm(node_coords[cj] - node_coords[ci]))
+                struts.append(
+                    {
+                        "pos_le": node_coords[ci],
+                        "pos_te": node_coords[cj],
+                        "diam_le": diam_le,
+                        "diam_te": diam_te,
+                        "length": length,
+                    }
+                )
+
+    return {
+        "le_node_positions": le_node_positions,
+        "struts": struts,
+    }
+
+
+def _get_le_diameters_at_ribs(tube_data, LE_points):
+    """Match LE tube diameters to rib LE positions by nearest-neighbor."""
+    le_node_positions = tube_data["le_node_positions"]
+    struct_pos = np.array([p[0] for p in le_node_positions])
+    struct_diam = np.array([p[1] for p in le_node_positions])
+
+    diameters = np.zeros(len(LE_points))
+    for i, le_pt in enumerate(LE_points):
+        distances = np.linalg.norm(struct_pos - le_pt, axis=1)
+        diameters[i] = struct_diam[np.argmin(distances)]
+    return diameters
 
 
 def find_mass_distributions(
     wing_sections,
     total_wing_mass: float,
     canopy_kg_p_sqm: float,
-    le_to_strut_mass_ratio: float,
+    le_to_strut_mass_ratio,
     sensor_mass: float,
+    is_strut=None,
+    tube_data=None,
 ):
     """
-    Calculate the center of gravity (CG) and inertia of the wing based on panel and component masss.
+    Calculate mass distributions for wing components.
 
     Parameters:
     wing_sections (list): List of wing sections data from YAML.
     total_wing_mass (float): Total mass of the wing.
-    canopy_kg_p_sqm (float): Canopy mass in grams per square meter.
-    le_to_strut_mass_ratio (float): Ratio of mass between LE and struts.
-    sensor_mass (float): mass of the sensor in kilograms.
+    canopy_kg_p_sqm (float): Canopy mass in kg per square meter.
+    le_to_strut_mass_ratio (float or None): Ratio of mass between LE and struts.
+        If None and tube_data is provided, derived from cylindrical surface areas.
+    sensor_mass (float): Mass of the sensor in kilograms.
+    is_strut: Boolean array indicating strut ribs.
+    tube_data (dict or None): LE tube and strut geometry from _extract_tube_data().
 
     Returns:
-    dict: A dictionary containing CG, total mass distribution, and individual component masss.
+    tuple: Mass distribution arrays and geometry data.
     """
     # Extract leading edge (LE) and trailing edge (TE) points
     # wing_sections data format: [airfoil_id, LE_x, LE_y, LE_z, TE_x, TE_y, TE_z, VUP_x, VUP_y, VUP_z]
@@ -38,11 +340,11 @@ def find_mass_distributions(
             for section in wing_sections
         ]
     )
-    # VUP points are now available if needed: [section[7], section[8], section[9]]
-    # For now, using default values for d_tube and is_strut since they're not in the YAML format
-    # TODO: Add these to the YAML generation if needed
-    d_tube = np.array([0.01 for section in wing_sections])  # Default tube diameter
-    is_strut = np.array([False for section in wing_sections])  # Default: no struts
+    # If no strut info is available, default to no struts.
+    if is_strut is None:
+        is_strut = np.array([False for _ in wing_sections], dtype=bool)
+    else:
+        is_strut = np.asarray(is_strut, dtype=bool)
 
     # Initialize variables
     total_canopy_mass = 0
@@ -65,14 +367,13 @@ def find_mass_distributions(
         diagonal = np.linalg.norm(p3 - p1)
         s = (edge1 + edge2 + diagonal) / 2
         area1 = np.sqrt(
-            s * (s - edge1) * (s - edge2) * (s - diagonal)
+            max(0.0, s * (s - edge1) * (s - edge2) * (s - diagonal))
         )  # First triangle
         edge3 = np.linalg.norm(p4 - p3)
         edge4 = np.linalg.norm(p4 - p1)
-        diagonal = np.linalg.norm(p4 - p3)
         s = (edge3 + edge4 + diagonal) / 2
         area2 = np.sqrt(
-            s * (s - edge3) * (s - edge4) * (s - diagonal)
+            max(0.0, s * (s - edge3) * (s - edge4) * (s - diagonal))
         )  # Second triangle
         panel_area = area1 + area2
         total_area += panel_area
@@ -91,17 +392,116 @@ def find_mass_distributions(
 
     # Distribute the remaining mass
     non_canopy_mass_min_sensor = non_canopy_mass - sensor_mass
+    if non_canopy_mass_min_sensor < 0:
+        raise ValueError(
+            "Sensor mass exceeds non-canopy mass budget. "
+            "Lower sensor_mass OR increase total_wing_mass."
+        )
+
+    n_le = len(LE_points)
+    n_strut_nodes = np.count_nonzero(is_strut)
+
+    # Precompute surface areas from tube geometry if available
+    le_diameters = None
+    le_seg_SA = None
+    strut_SAs = None
+    strut_rib_indices = None
+
+    if tube_data is not None:
+        le_diameters = _get_le_diameters_at_ribs(tube_data, LE_points)
+
+        # LE tube segment surface areas along path: TE[0]→LE[0]→...→LE[n-1]→TE[-1]
+        n_seg = n_le + 1  # (n_le - 1) inter-rib + 2 tip segments
+        le_seg_SA = np.zeros(n_seg)
+        # Tip segment 0: TE[0] → LE[0]
+        le_seg_SA[0] = (
+            np.pi * le_diameters[0] * np.linalg.norm(LE_points[0] - TE_points[0])
+        )
+        # Inter-rib segments
+        for i in range(n_le - 1):
+            d_avg = 0.5 * (le_diameters[i] + le_diameters[i + 1])
+            length = np.linalg.norm(LE_points[i + 1] - LE_points[i])
+            le_seg_SA[i + 1] = np.pi * d_avg * length
+        # Tip segment n_le: LE[n-1] → TE[-1]
+        le_seg_SA[n_le] = (
+            np.pi * le_diameters[-1] * np.linalg.norm(TE_points[-1] - LE_points[-1])
+        )
+
+        # Strut cylindrical surface areas
+        strut_SAs = []
+        strut_rib_indices = []
+        if tube_data.get("struts"):
+            for strut in tube_data["struts"]:
+                d_avg = 0.5 * (strut["diam_le"] + strut["diam_te"])
+                SA = np.pi * d_avg * strut["length"]
+                strut_SAs.append(SA)
+                # Match strut LE position to rib index
+                dists = np.linalg.norm(LE_points - strut["pos_le"], axis=1)
+                strut_rib_indices.append(int(np.argmin(dists)))
+
+        # Derive le_to_strut ratio from geometry if not explicitly set
+        if le_to_strut_mass_ratio is None:
+            total_le_SA = float(np.sum(le_seg_SA))
+            total_strut_SA = float(sum(strut_SAs)) if strut_SAs else 0.0
+            if total_le_SA + total_strut_SA > 0:
+                le_to_strut_mass_ratio = total_le_SA / (total_le_SA + total_strut_SA)
+            else:
+                le_to_strut_mass_ratio = 1.0
+
+    # Default ratio if still None (no tube data, no explicit value)
+    if le_to_strut_mass_ratio is None:
+        le_to_strut_mass_ratio = 0.7
+
     le_mass = non_canopy_mass_min_sensor * le_to_strut_mass_ratio
     strut_mass = non_canopy_mass_min_sensor * (1 - le_to_strut_mass_ratio)
 
+    if n_strut_nodes == 0:
+        le_mass += strut_mass
+        strut_mass = 0.0
+
     #### Distributing the mass over the nodes
-    # Assuming the mass is distributed uniformly over the length of the LE
-    n_LE_points = len(LE_points) + 2
-    le_mass_per_node = le_mass / n_LE_points
-    # Assuming the mass is distributed uniformly over the length of the strut
-    # strut_mass_per_node = strut_mass / len(LE_points)
-    n_strut_nodes = np.count_nonzero(is_strut)
-    strut_mass_per_node = 0.5 * (strut_mass / n_strut_nodes)
+    if tube_data is not None and le_seg_SA is not None:
+        # --- Surface-area-proportional distribution ---
+        total_le_SA = float(np.sum(le_seg_SA))
+        if total_le_SA > 0:
+            seg_mass = le_mass * le_seg_SA / total_le_SA
+        else:
+            seg_mass = np.full(len(le_seg_SA), le_mass / len(le_seg_SA))
+
+        # Lump each segment's mass 50/50 to its two endpoint nodes
+        le_node_masses = np.zeros(n_le)
+        le_tip_te_masses = np.zeros(2)
+
+        le_tip_te_masses[0] = 0.5 * seg_mass[0]  # TE[0] wingtip
+        le_node_masses[0] = 0.5 * seg_mass[0] + 0.5 * seg_mass[1]
+        for i in range(1, n_le - 1):
+            le_node_masses[i] = 0.5 * seg_mass[i] + 0.5 * seg_mass[i + 1]
+        le_node_masses[n_le - 1] = 0.5 * seg_mass[n_le - 1] + 0.5 * seg_mass[n_le]
+        le_tip_te_masses[1] = 0.5 * seg_mass[n_le]  # TE[-1] wingtip
+
+        # Strut mass proportional to each strut's cylindrical surface area
+        strut_node_masses = np.zeros(n_le)
+        if n_strut_nodes > 0 and strut_SAs:
+            total_strut_SA = sum(strut_SAs)
+            if total_strut_SA > 0:
+                for SA_j, rib_idx in zip(strut_SAs, strut_rib_indices):
+                    # Each strut's mass split to LE + TE nodes, so halve here
+                    strut_node_masses[rib_idx] = (
+                        0.5 * strut_mass * SA_j / total_strut_SA
+                    )
+    else:
+        # --- Uniform distribution (fallback) ---
+        n_total_le_nodes = n_le + 2
+        le_mass_uniform = le_mass / n_total_le_nodes
+        le_node_masses = np.full(n_le, le_mass_uniform)
+        le_tip_te_masses = np.array([le_mass_uniform, le_mass_uniform])
+
+        strut_node_masses = np.zeros(n_le)
+        if n_strut_nodes > 0:
+            smass_per_node = 0.5 * (strut_mass / n_strut_nodes)
+            for i in range(n_le):
+                if is_strut[i]:
+                    strut_node_masses[i] = smass_per_node
 
     ## Find leading-edge points where the sensor mass is at
     n_ribs = len(LE_points)
@@ -110,38 +510,47 @@ def find_mass_distributions(
     return (
         total_canopy_mass,
         panel_canopy_mass_list,
-        le_mass_per_node,
-        strut_mass_per_node,
+        le_node_masses,
+        strut_node_masses,
+        le_tip_te_masses,
         sensor_points_indices,
         LE_points,
         TE_points,
         is_strut,
         total_area,
+        le_to_strut_mass_ratio,
     )
 
 
 def distribute_mass_over_nodes(
-    le_mass_per_node,
-    strut_mass_per_node,
+    le_node_masses,
+    strut_node_masses,
+    le_tip_te_masses,
     sensor_mass,
     panel_canopy_mass_list,
     sensor_points_indices,
     LE_points,
     TE_points,
-    is_strut,
 ):
     """
-    Distribute the mass over the nodes so that:
-      - LE mass is distributed among LE nodes (le_mass_per_node).
-      - Strut mass is added to nodes flagged as 'is_strut' (strut_mass_per_node).
-      - The sensor mass is distributed among a couple of LE nodes (sensor_points_indices).
-      - The canopy mass from each panel is split among its 4 corner nodes, i.e.
-        each corner node gets 1/4 of that panel's canopy mass.
+    Distribute mass over wing nodes.
 
-    The trick is that an LE node i is corner of panel (i-1) and panel i
-    (except at the boundaries). The same logic applies to TE nodes --
-    EXCEPT for the outer two TE nodes (i=0, i=n_te-1), which we treat
-    as if they are LE nodes for mass distribution.
+    Parameters
+    ----------
+    le_node_masses : array, shape (n_le,)
+        LE tube mass per LE node (surface-area-proportional or uniform).
+    strut_node_masses : array, shape (n_le,)
+        Strut mass contribution per rib (half-strut mass; 0 for non-strut ribs).
+    le_tip_te_masses : array, shape (2,)
+        LE tube mass for the two wingtip TE nodes [tip_0, tip_n-1].
+    sensor_mass : float
+        Total sensor mass split among sensor_points_indices.
+    panel_canopy_mass_list : list
+        Canopy mass per panel (1/4 goes to each corner node).
+    sensor_points_indices : list
+        Indices of LE nodes carrying the sensor.
+    LE_points, TE_points : arrays
+        Node positions.
     """
 
     import numpy as np
@@ -155,15 +564,12 @@ def distribute_mass_over_nodes(
     # 1) Distribute mass to LE nodes
     #
     for i, le_point in enumerate(LE_points):
-        node_mass = 0.0
-        # LE mass portion
-        node_mass += le_mass_per_node
+        node_mass = le_node_masses[i]
         # Sensor mass portion (if this LE node is flagged for sensor)
         if i in sensor_points_indices:
             node_mass += sensor_mass / len(sensor_points_indices)
-        # Strut mass portion (only if flagged)
-        if is_strut[i]:
-            node_mass += strut_mass_per_node
+        # Strut mass portion
+        node_mass += strut_node_masses[i]
 
         # ---- Canopy mass portion for LE node i ----
         # This LE node belongs to panel i-1 (if i > 0) and panel i (if i < n_le-1)
@@ -181,18 +587,15 @@ def distribute_mass_over_nodes(
     for i, te_point in enumerate(TE_points):
         node_mass = 0.0
 
-        # If this is an outer TE node (i=0 or i=n_te-1), treat it like LE for mass
-        # distribution. That means we add LE mass, possible sensor mass, etc.
-        # But still do the "TE canopy corner" logic for panel distribution, so we
-        # *also* get the 1/4 canopy mass from panels i and i-1 if inside range.
-        if i == 0 or i == (n_te - 1):
-            # Outer TE -> treat like LE
-            node_mass += le_mass_per_node
+        if i == 0:
+            # Outer TE tip -> gets LE tube tip mass
+            node_mass += le_tip_te_masses[0]
+        elif i == (n_te - 1):
+            # Outer TE tip -> gets LE tube tip mass
+            node_mass += le_tip_te_masses[1]
 
-        else:
-            # Normal TE node logic (no LE mass, no sensor mass, but maybe strut)
-            if is_strut[i]:
-                node_mass += strut_mass_per_node
+        # Always add strut mass (will be 0.0 for non-strut ribs)
+        node_mass += strut_node_masses[i]
 
         # ---- Canopy mass portion for TE node i ----
         # If i>0, we add 0.25 from panel i-1
@@ -204,7 +607,122 @@ def distribute_mass_over_nodes(
 
         nodes.append([te_point, node_mass])
 
+    # Enforce y-symmetry: average mirror pairs (index i <-> n_le-1-i)
+    # so left/right mass distributions are identical.
+    for i in range(n_le // 2):
+        j = n_le - 1 - i
+        # LE mirror pair
+        avg_le = 0.5 * (nodes[i][1] + nodes[j][1])
+        nodes[i][1] = avg_le
+        nodes[j][1] = avg_le
+        # TE mirror pair (TE nodes start at index n_le)
+        avg_te = 0.5 * (nodes[n_le + i][1] + nodes[n_le + j][1])
+        nodes[n_le + i][1] = avg_te
+        nodes[n_le + j][1] = avg_te
+
     return nodes
+
+
+def compute_structural_node_masses(
+    wing_sections_data,
+    wing_airfoils_data=None,
+    total_wing_mass=10.0,
+    canopy_kg_p_sqm=0.05,
+    le_to_strut_mass_ratio=None,
+    sensor_mass=0.0,
+    struc_config=None,
+):
+    """
+    Compute per-node masses for the structural wing mesh.
+
+    Non-printing, non-plotting helper for use in YAML generation.
+    Node IDs follow wing_particles convention: odd = LE, even = TE.
+
+    Parameters
+    ----------
+    wing_sections_data : list
+        Section data rows (filtered to structural ribs).
+    wing_airfoils_data : list or None
+        Airfoil data rows for is_strut extraction.
+    total_wing_mass : float
+        Total wing mass budget in kg.
+    canopy_kg_p_sqm : float
+        Canopy fabric mass in kg per square meter.
+    le_to_strut_mass_ratio : float or None
+        If None, auto-derived from tube surface areas.
+    sensor_mass : float
+        Sensor mass in kg.
+    struc_config : dict or None
+        Config dict with wing_particles, leading_edge_tubes, strut_tubes
+        (same format as struc_geometry_all_in_surfplan.yaml).
+
+    Returns
+    -------
+    node_masses : dict
+        {node_id (1-based): mass_kg}
+    used_le_to_strut_ratio : float
+    """
+    is_strut = _extract_is_strut_flags(wing_sections_data, wing_airfoils_data)
+
+    tube_data = _extract_tube_data(struc_config) if struc_config else None
+
+    (
+        total_canopy_mass,
+        panel_canopy_mass_list,
+        le_node_masses,
+        strut_node_masses,
+        le_tip_te_masses,
+        sensor_points_indices,
+        LE_points,
+        TE_points,
+        is_strut,
+        total_area,
+        used_le_to_strut_ratio,
+    ) = find_mass_distributions(
+        wing_sections_data,
+        total_wing_mass,
+        canopy_kg_p_sqm,
+        le_to_strut_mass_ratio,
+        sensor_mass,
+        is_strut=is_strut,
+        tube_data=tube_data,
+    )
+
+    nodes = distribute_mass_over_nodes(
+        le_node_masses,
+        strut_node_masses,
+        le_tip_te_masses,
+        sensor_mass,
+        panel_canopy_mass_list,
+        sensor_points_indices,
+        LE_points,
+        TE_points,
+    )
+
+    # Build node_id -> mass mapping
+    # distribute_mass_over_nodes returns: first n_le LE nodes, then n_le TE nodes
+    n_le = len(LE_points)
+    node_masses = {}
+    for i in range(n_le):
+        le_node_id = 2 * i + 1  # odd: 1, 3, 5, ...
+        te_node_id = 2 * i + 2  # even: 2, 4, 6, ...
+        node_masses[le_node_id] = nodes[i][1]
+        node_masses[te_node_id] = nodes[n_le + i][1]
+
+    # Enforce y-symmetry: average mirror pairs so left/right masses match.
+    # Ribs are sorted by LE_y, so index i mirrors index (n_le - 1 - i).
+    for i in range(n_le // 2):
+        j = n_le - 1 - i
+        le_l, le_r = 2 * i + 1, 2 * j + 1
+        te_l, te_r = 2 * i + 2, 2 * j + 2
+        avg_le = 0.5 * (node_masses[le_l] + node_masses[le_r])
+        avg_te = 0.5 * (node_masses[te_l] + node_masses[te_r])
+        node_masses[le_l] = avg_le
+        node_masses[le_r] = avg_le
+        node_masses[te_l] = avg_te
+        node_masses[te_r] = avg_te
+
+    return node_masses, used_le_to_strut_ratio
 
 
 def calculate_cg(nodes):
@@ -428,48 +946,84 @@ def main(
     yaml_file_path,
     total_wing_mass=10.0,
     canopy_kg_p_sqm=0.05,
-    le_to_strut_mass_ratio=0.7,
+    le_to_strut_mass_ratio=None,
     sensor_mass=0.5,
     desired_point=[0, 0, 0],
     is_show_plot=True,
+    include_bridle_mass=True,
 ):
     """
     Calculate CG and inertia using a config_kite.yaml file.
+
+    Parameters
+    ----------
+    le_to_strut_mass_ratio : float or None
+        If None, auto-derived from tube surface areas in struc_geometry_all_in_surfplan.yaml.
+        If that file is absent, falls back to 0.7.
     """
     # Load geometry from YAML
     with open(yaml_file_path, "r") as f:
         config = yaml.safe_load(f)
     # Extract wing_sections data
     wing_sections = config["wing_sections"]["data"]
-    # Optionally: extract other info from YAML as needed
+    wing_airfoils = config.get("wing_airfoils", {}).get("data", [])
+    is_strut = _extract_is_strut_flags(wing_sections, wing_airfoils)
+
+    # Try to load structural geometry for tube data
+    tube_data = None
+    struc_yaml_path = Path(yaml_file_path).with_name(
+        "struc_geometry_all_in_surfplan.yaml"
+    )
+    if struc_yaml_path.exists():
+        with open(struc_yaml_path, "r") as f:
+            struc_config = yaml.safe_load(f)
+        tube_data = _extract_tube_data(struc_config)
 
     (
         total_canopy_mass,
         panel_canopy_mass_list,
-        le_mass_per_node,
-        strut_mass_per_node,
+        le_node_masses,
+        strut_node_masses,
+        le_tip_te_masses,
         sensor_points_indices,
         LE_points,
         TE_points,
         is_strut,
         total_area,
+        used_le_to_strut_ratio,
     ) = find_mass_distributions(
         wing_sections,
         total_wing_mass,
         canopy_kg_p_sqm,
         le_to_strut_mass_ratio,
         sensor_mass,
+        is_strut=is_strut,
+        tube_data=tube_data,
     )
-    nodes = distribute_mass_over_nodes(
-        le_mass_per_node,
-        strut_mass_per_node,
+    wing_nodes = distribute_mass_over_nodes(
+        le_node_masses,
+        strut_node_masses,
+        le_tip_te_masses,
         sensor_mass,
         panel_canopy_mass_list,
         sensor_points_indices,
         LE_points,
         TE_points,
-        is_strut,
     )
+    nodes = list(wing_nodes)
+
+    bridle_mass_source = None
+    total_bridle_mass = 0.0
+    n_bridle_segments = 0
+    if include_bridle_mass:
+        bridle_config, bridle_mass_source = _select_bridle_source_config(
+            config, yaml_file_path
+        )
+        bridle_nodes, total_bridle_mass, n_bridle_segments = _extract_bridle_mass_nodes(
+            bridle_config
+        )
+        nodes.extend(bridle_nodes)
+
     x_cg, y_cg, z_cg = calculate_cg(nodes)
     inertia_tensor = calculate_inertia(nodes, desired_point)
 
@@ -477,13 +1031,31 @@ def main(
     print(f"\n--- INPUT ---")
     print(f"total_wing_mass: {total_wing_mass}")
     print(f"canopy_kg_p_sqm: {canopy_kg_p_sqm}")
-    print(f"le_to_strut_mass_ratio: {le_to_strut_mass_ratio}")
+    ratio_source = (
+        "auto (surface area)" if le_to_strut_mass_ratio is None else "user-specified"
+    )
+    print(f"le_to_strut_mass_ratio: {used_le_to_strut_ratio:.4f} ({ratio_source})")
     print(f"sensor_mass: {sensor_mass}")
+    print(f"include_bridle_mass: {include_bridle_mass}")
+    print(
+        f"tube_data: {'loaded from struc_geometry_all_in_surfplan.yaml' if tube_data is not None else 'not available (uniform fallback)'}"
+    )
 
     print(f"\n--- OUTPUT --- ")
+    wing_node_mass = sum([node[1] for node in wing_nodes])
+    total_node_mass = sum([node[1] for node in nodes])
     print(
-        f"Total node mass:        {sum([node[1] for node in nodes]):.2f} kg (should be equal to input total_wing_mass)"
+        f"Wing node mass:         {wing_node_mass:.2f} kg (target total_wing_mass={total_wing_mass:.2f} kg)"
     )
+    print(
+        f"Bridle line mass:       {total_bridle_mass:.3f} kg ({n_bridle_segments} bridle segments)"
+    )
+    if include_bridle_mass:
+        source_label = (
+            bridle_mass_source if bridle_mass_source is not None else "not found"
+        )
+        print(f"Bridle source YAML:     {source_label}")
+    print(f"Total node mass:        {total_node_mass:.2f} kg (wing + optional bridle)")
     print(f"center of gravity: [{x_cg:.2f}, {y_cg:.2f}, {z_cg:.2f}] [m]")
     print(f"point around intertia is calculated: {desired_point} [m]")
     print("Inertia tensor:")

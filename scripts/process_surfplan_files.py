@@ -13,7 +13,14 @@ from SurfplanAdapter.find_airfoil_parameters.plot_airfoils_comparison import (
 )
 
 
-def main(kite_name="TUDELFT_V3_KITE", airfoil_type="masure_regression"):
+def main(
+    kite_name="TUDELFT_V3_KITE",
+    airfoil_type="masure_regression",
+    total_wing_mass=10.0,
+    canopy_kg_p_sqm=0.05,
+    le_to_strut_mass_ratio=None,
+    sensor_mass=0.0,
+):
     """It is crucial that the kite_name matches the name of the surfplan file"""
 
     PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -50,6 +57,10 @@ def main(kite_name="TUDELFT_V3_KITE", airfoil_type="masure_regression"):
         bridle_lines=bridle_lines,
         yaml_file_path=config_kite_yaml_path,
         airfoil_type=airfoil_type,
+        total_wing_mass=total_wing_mass,
+        canopy_kg_p_sqm=canopy_kg_p_sqm,
+        le_to_strut_mass_ratio=le_to_strut_mass_ratio,
+        sensor_mass=sensor_mass,
     )
 
     # Generate 3D plot of airfoils from the created YAML file

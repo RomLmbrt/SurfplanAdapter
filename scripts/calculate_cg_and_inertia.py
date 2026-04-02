@@ -5,9 +5,10 @@ from SurfplanAdapter import calculate_cg_and_inertia
 def main(
     kite_name="TUDELFT_V3_KITE",
     total_wing_mass=10.0,
-    canopy_kg_p_sqm=0.05,
-    le_to_strut_mass_ratio=0.7,
-    sensor_mass=0.5,
+    canopy_kg_p_sqm=0.1,  # 100g/m2
+    le_to_strut_mass_ratio=None,  # if None it is auto-derived
+    sensor_mass=0.0,
+    include_bridle_mass=True,
     is_show_plot=True,
     desired_point=[0, 0, 0],
 ):
@@ -23,6 +24,7 @@ def main(
         canopy_kg_p_sqm=canopy_kg_p_sqm,
         le_to_strut_mass_ratio=le_to_strut_mass_ratio,
         sensor_mass=sensor_mass,
+        include_bridle_mass=include_bridle_mass,
         desired_point=desired_point,
         is_show_plot=is_show_plot,
     )

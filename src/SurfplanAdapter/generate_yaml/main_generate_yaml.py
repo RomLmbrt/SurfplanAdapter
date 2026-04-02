@@ -115,6 +115,10 @@ def main(
     yaml_file_path: Path = None,
     airfoil_type: str = "masure_regression",
     wing_yaml="aero_geometry.yaml",
+    total_wing_mass=10.0,
+    canopy_kg_p_sqm=0.05,
+    le_to_strut_mass_ratio=None,
+    sensor_mass=0.0,
 ):
     """
     Generate a YAML file with wing geometry and airfoil data using SurfplanAdapter logic.
@@ -141,12 +145,8 @@ def main(
         rib["vsm_y_rotation_rad"] = y_rotation_rad
 
     for bridle_line in bridle_lines:
-        bridle_line[0] = rotate_coordinate_around_y_vsm(
-            bridle_line[0], y_rotation_rad
-        )
-        bridle_line[1] = rotate_coordinate_around_y_vsm(
-            bridle_line[1], y_rotation_rad
-        )
+        bridle_line[0] = rotate_coordinate_around_y_vsm(bridle_line[0], y_rotation_rad)
+        bridle_line[1] = rotate_coordinate_around_y_vsm(bridle_line[1], y_rotation_rad)
 
     # Create wing dict
     wing_sections = generate_wing_sections_data.main(ribs_data)
@@ -171,4 +171,13 @@ def main(
     utils.save_to_yaml(yaml_data, yaml_file_path)
 
     # create the struc_geometry.yaml with only struts and bridle lines
-    create_struc_geometry_yaml.main(ribs_data, bridle_lines, yaml_file_path)
+    create_struc_geometry_yaml.main(
+        ribs_data,
+        bridle_lines,
+        yaml_file_path,
+        airfoil_type=airfoil_type,
+        total_wing_mass=total_wing_mass,
+        canopy_kg_p_sqm=canopy_kg_p_sqm,
+        le_to_strut_mass_ratio=le_to_strut_mass_ratio,
+        sensor_mass=sensor_mass,
+    )
