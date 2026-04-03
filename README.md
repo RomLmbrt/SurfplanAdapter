@@ -13,7 +13,8 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
   
 ## Installation Instructions
 
-   Linux: 
+Linux: 
+   
     ```bash
     git clone git@github.com:jellepoland/SurfplanAdapter.git && \
     cd SurfplanAdapter && \
@@ -21,7 +22,9 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
     source venv/bin/activate && \
     pip install -e .[dev]
     ```
-    Windows:
+    
+Windows:
+    
     ```bash
     git clone git@github.com:jellepoland/SurfplanAdapter.git; `
     cd SurfplanAdapter; `
@@ -51,32 +54,6 @@ Run the following from the repository root, to test the workflow with the [TUDEL
     ```bash
     python -m scripts.process_surfplan_files --kite_name=MY_NEW_KITE
     ```
-
-## Dependencies
-
-Core dependencies (see [pyproject.toml](pyproject.toml) for complete list):
-- **numpy**: Numerical computations and array operations
-- **matplotlib**: Plotting and visualization
-- **pyyaml**: YAML file handling
-- **scipy**: Scientific computing utilities
-
-Optional dependencies:
-- **VSM** (Vortex-Step-Method): For aerodynamic analysis
-- **pytest**: For running tests (dev)
-
-## LEI Airfoil Parametrization
-
-The tool uses a 6-parameter model for leading-edge inflatable (LEI) airfoils, based on the work of [K.R.G. Masure](https://resolver.tudelft.nl/uuid:865d59fc-ccff-462e-9bac-e81725f1c0c9):
-
-- **t**: Leading edge tube diameter (normalized by chord)
-- **η**: Chordwise camber position (0 to 1)
-- **κ**: Maximum camber height (normalized by chord)
-- **δ**: Trailing edge reflex angle (degrees)
-- **λ**: Trailing edge camber tension (0 to 1)
-- **φ**: Leading edge curvature tension (0 to 1)
-
-These parameters are automatically fitted to CAD-sliced profiles from Surfplan.
-
 
 ## Citation
 
