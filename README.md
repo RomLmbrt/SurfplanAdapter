@@ -11,28 +11,28 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
 - [Particle_System_Simulator](https://github.com/awegroup/Particle_System_Simulator) for structural analysis.
 - [ASKITE](https://github.com/awegroup/ASKITE) for coupled aero-structural analysis, integrating the toolchains mentioned above.
   
-## Installation Instructions
-1. Install by running
-  Linux: 
-     
-      ```bash
-      git clone git@github.com:jellepoland/SurfplanAdapter.git && \
-      cd SurfplanAdapter && \
-      python3 -m venv venv && \
-      source venv/bin/activate && \
-      pip install -e .[dev]
+## Installation Instruction
+### 1. Install by running
+Linux: 
+   
+    ```bash
+    git clone git@github.com:jellepoland/SurfplanAdapter.git && \
+    cd SurfplanAdapter && \
+    python3 -m venv venv && \
+    source venv/bin/activate && \
+    pip install -e .[dev]
       ```
       
-  Windows:
-      
-      ```bash
-      git clone git@github.com:jellepoland/SurfplanAdapter.git; `
-      cd SurfplanAdapter; `
-      python -m venv venv; `
-      .\venv\Scripts\Activate.ps1; `
-      pip install -e .[dev]
+Windows:
+    
+    ```bash
+    git clone git@github.com:jellepoland/SurfplanAdapter.git; `
+    cd SurfplanAdapter; `
+    python -m venv venv; `
+    .\venv\Scripts\Activate.ps1; `
+    pip install -e .[dev]
     ```
-2. Verify working, by running the workflow for the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
+### 2. Verify working, by running the workflow for the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
   ```bash
   python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
   ```
