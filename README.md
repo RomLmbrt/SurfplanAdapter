@@ -35,9 +35,9 @@ Windows:
 
 ## Quick-test-run
 Run the following from the repository root, to test the workflow with the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
-```bash
-    python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
-```
+  ```bash
+  python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
+  ```
 
 ## Processing your own Surfplan Design
 
