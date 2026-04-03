@@ -301,12 +301,38 @@ def _get_le_diameters_at_ribs(tube_data, LE_points):
     return diameters
 
 
+def _get_mid_span_le_indices(n_ribs):
+    """Return one (odd ribs) or two (even ribs) LE node indices at mid-span."""
+    if n_ribs <= 0:
+        return []
+    if n_ribs % 2 == 1:
+        return [n_ribs // 2]
+    return [n_ribs // 2 - 1, n_ribs // 2]
+
+
+def _get_non_tip_strut_attachment_indices(is_strut, n_le, strut_rib_indices=None):
+    """
+    Return unique LE rib indices with strut attachments, excluding tip ribs.
+
+    Tip ribs are always the two outermost y-indices: 0 and n_le-1.
+    """
+    if strut_rib_indices:
+        candidates = {int(idx) for idx in strut_rib_indices}
+    else:
+        candidates = set(np.where(np.asarray(is_strut, dtype=bool))[0].tolist())
+
+    return sorted(idx for idx in candidates if 0 < idx < (n_le - 1))
+
+
 def find_mass_distributions(
     wing_sections,
     total_wing_mass: float,
     canopy_kg_p_sqm: float,
     le_to_strut_mass_ratio,
+    tube_kg_p_sqm,
     sensor_mass: float,
+    mid_span_valve_weight: float = 0.0,
+    strut_tube_weight: float = 0.0,
     is_strut=None,
     tube_data=None,
 ):
@@ -319,7 +345,12 @@ def find_mass_distributions(
     canopy_kg_p_sqm (float): Canopy mass in kg per square meter.
     le_to_strut_mass_ratio (float or None): Ratio of mass between LE and struts.
         If None and tube_data is provided, derived from cylindrical surface areas.
+    tube_kg_p_sqm (float or None): Tube skin mass in kg per square meter for
+        LE+strut cylindrical surface areas. If set, it overrides mass-budget-based
+        tube scaling and uses geometry-based tube mass directly.
     sensor_mass (float): Mass of the sensor in kilograms.
+    mid_span_valve_weight (float): Valve mass at LE mid-span (split over 1 or 2 ribs).
+    strut_tube_weight (float): Extra mass per non-tip LE strut-attachment rib.
     is_strut: Boolean array indicating strut ribs.
     tube_data (dict or None): LE tube and strut geometry from _extract_tube_data().
 
@@ -390,22 +421,23 @@ def find_mass_distributions(
         )
     non_canopy_mass = total_wing_mass - total_canopy_mass
 
-    # Distribute the remaining mass
-    non_canopy_mass_min_sensor = non_canopy_mass - sensor_mass
-    if non_canopy_mass_min_sensor < 0:
-        raise ValueError(
-            "Sensor mass exceeds non-canopy mass budget. "
-            "Lower sensor_mass OR increase total_wing_mass."
-        )
-
     n_le = len(LE_points)
     n_strut_nodes = np.count_nonzero(is_strut)
+
+    if mid_span_valve_weight < 0:
+        raise ValueError("mid_span_valve_weight must be >= 0.")
+    if strut_tube_weight < 0:
+        raise ValueError("strut_tube_weight must be >= 0.")
+    if tube_kg_p_sqm is not None and tube_kg_p_sqm < 0:
+        raise ValueError("tube_kg_p_sqm must be >= 0.")
 
     # Precompute surface areas from tube geometry if available
     le_diameters = None
     le_seg_SA = None
     strut_SAs = None
     strut_rib_indices = None
+    le_surface_area_used = None
+    strut_surface_area_used = None
 
     if tube_data is not None:
         le_diameters = _get_le_diameters_at_ribs(tube_data, LE_points)
@@ -438,6 +470,8 @@ def find_mass_distributions(
                 # Match strut LE position to rib index
                 dists = np.linalg.norm(LE_points - strut["pos_le"], axis=1)
                 strut_rib_indices.append(int(np.argmin(dists)))
+        le_surface_area_used = float(np.sum(le_seg_SA))
+        strut_surface_area_used = float(sum(strut_SAs)) if strut_SAs else 0.0
 
         # Derive le_to_strut ratio from geometry if not explicitly set
         if le_to_strut_mass_ratio is None:
@@ -452,8 +486,40 @@ def find_mass_distributions(
     if le_to_strut_mass_ratio is None:
         le_to_strut_mass_ratio = 0.7
 
-    le_mass = non_canopy_mass_min_sensor * le_to_strut_mass_ratio
-    strut_mass = non_canopy_mass_min_sensor * (1 - le_to_strut_mass_ratio)
+    strut_attachment_indices = _get_non_tip_strut_attachment_indices(
+        is_strut, n_le, strut_rib_indices
+    )
+    strut_tube_total_mass = strut_tube_weight * len(strut_attachment_indices)
+
+    # Distribute the remaining mass after fixed lumped masses
+    non_canopy_mass_for_split = (
+        non_canopy_mass - sensor_mass - mid_span_valve_weight - strut_tube_total_mass
+    )
+    if non_canopy_mass_for_split < 0:
+        raise ValueError(
+            "Fixed lumped masses (sensor + valve + strut_tube extras) exceed "
+            "non-canopy mass budget. Lower sensor_mass/mid_span_valve_weight/"
+            "strut_tube_weight OR increase total_wing_mass."
+        )
+
+    if tube_kg_p_sqm is not None:
+        if tube_data is None or le_seg_SA is None:
+            raise ValueError(
+                "tube_kg_p_sqm requires tube geometry data "
+                "(struc_geometry_all_in_surfplan.yaml)."
+            )
+        total_le_SA_for_mass = float(np.sum(le_seg_SA))
+        total_strut_SA_for_mass = float(sum(strut_SAs)) if strut_SAs else 0.0
+        le_mass = tube_kg_p_sqm * total_le_SA_for_mass
+        strut_mass = tube_kg_p_sqm * total_strut_SA_for_mass
+        total_tube_mass = le_mass + strut_mass
+        if total_tube_mass > 0:
+            le_to_strut_mass_ratio = le_mass / total_tube_mass
+        else:
+            le_to_strut_mass_ratio = 1.0
+    else:
+        le_mass = non_canopy_mass_for_split * le_to_strut_mass_ratio
+        strut_mass = non_canopy_mass_for_split * (1 - le_to_strut_mass_ratio)
 
     if n_strut_nodes == 0:
         le_mass += strut_mass
@@ -503,6 +569,17 @@ def find_mass_distributions(
                 if is_strut[i]:
                     strut_node_masses[i] = smass_per_node
 
+    # LE-only lumped masses
+    le_extra_node_masses = np.zeros(n_le)
+    valve_points_indices = _get_mid_span_le_indices(n_le)
+    if valve_points_indices and mid_span_valve_weight > 0:
+        valve_mass_per_node = mid_span_valve_weight / len(valve_points_indices)
+        for idx in valve_points_indices:
+            le_extra_node_masses[idx] += valve_mass_per_node
+    if strut_tube_weight > 0:
+        for idx in strut_attachment_indices:
+            le_extra_node_masses[idx] += strut_tube_weight
+
     ## Find leading-edge points where the sensor mass is at
     n_ribs = len(LE_points)
     sensor_points_indices = [int(n_ribs // 2), int(n_ribs // 2) - 1]
@@ -513,11 +590,14 @@ def find_mass_distributions(
         le_node_masses,
         strut_node_masses,
         le_tip_te_masses,
+        le_extra_node_masses,
         sensor_points_indices,
         LE_points,
         TE_points,
         is_strut,
         total_area,
+        le_surface_area_used,
+        strut_surface_area_used,
         le_to_strut_mass_ratio,
     )
 
@@ -526,11 +606,13 @@ def distribute_mass_over_nodes(
     le_node_masses,
     strut_node_masses,
     le_tip_te_masses,
+    le_extra_node_masses,
     sensor_mass,
     panel_canopy_mass_list,
     sensor_points_indices,
     LE_points,
     TE_points,
+    return_mass_audit=False,
 ):
     """
     Distribute mass over wing nodes.
@@ -543,6 +625,8 @@ def distribute_mass_over_nodes(
         Strut mass contribution per rib (half-strut mass; 0 for non-strut ribs).
     le_tip_te_masses : array, shape (2,)
         LE tube mass for the two wingtip TE nodes [tip_0, tip_n-1].
+    le_extra_node_masses : array, shape (n_le,)
+        Additional LE-only lumped masses (e.g. valve, strut tube hardware).
     sensor_mass : float
         Total sensor mass split among sensor_points_indices.
     panel_canopy_mass_list : list
@@ -551,6 +635,8 @@ def distribute_mass_over_nodes(
         Indices of LE nodes carrying the sensor.
     LE_points, TE_points : arrays
         Node positions.
+    return_mass_audit : bool
+        If True, also return a dict with pre/post symmetry nodal mass sums.
     """
 
     import numpy as np
@@ -570,6 +656,8 @@ def distribute_mass_over_nodes(
             node_mass += sensor_mass / len(sensor_points_indices)
         # Strut mass portion
         node_mass += strut_node_masses[i]
+        # Extra LE-only lumped masses
+        node_mass += le_extra_node_masses[i]
 
         # ---- Canopy mass portion for LE node i ----
         # This LE node belongs to panel i-1 (if i > 0) and panel i (if i < n_le-1)
@@ -607,6 +695,8 @@ def distribute_mass_over_nodes(
 
         nodes.append([te_point, node_mass])
 
+    pre_correction_mass = float(sum(node[1] for node in nodes))
+
     # Enforce y-symmetry: average mirror pairs (index i <-> n_le-1-i)
     # so left/right mass distributions are identical.
     for i in range(n_le // 2):
@@ -620,6 +710,13 @@ def distribute_mass_over_nodes(
         nodes[n_le + i][1] = avg_te
         nodes[n_le + j][1] = avg_te
 
+    corrected_mass = float(sum(node[1] for node in nodes))
+
+    if return_mass_audit:
+        return nodes, {
+            "pre_correction_mass": pre_correction_mass,
+            "corrected_mass": corrected_mass,
+        }
     return nodes
 
 
@@ -629,7 +726,10 @@ def compute_structural_node_masses(
     total_wing_mass=10.0,
     canopy_kg_p_sqm=0.05,
     le_to_strut_mass_ratio=None,
+    tube_kg_p_sqm=None,
     sensor_mass=0.0,
+    mid_span_valve_weight=0.0,
+    strut_tube_weight=0.0,
     struc_config=None,
 ):
     """
@@ -650,8 +750,14 @@ def compute_structural_node_masses(
         Canopy fabric mass in kg per square meter.
     le_to_strut_mass_ratio : float or None
         If None, auto-derived from tube surface areas.
+    tube_kg_p_sqm : float or None
+        Tube skin mass in kg/m^2 for LE+strut cylindrical areas.
     sensor_mass : float
         Sensor mass in kg.
+    mid_span_valve_weight : float
+        Valve mass at LE mid-span in kg.
+    strut_tube_weight : float
+        Extra mass per non-tip LE strut-attachment rib in kg.
     struc_config : dict or None
         Config dict with wing_particles, leading_edge_tubes, strut_tubes
         (same format as struc_geometry_all_in_surfplan.yaml).
@@ -672,18 +778,24 @@ def compute_structural_node_masses(
         le_node_masses,
         strut_node_masses,
         le_tip_te_masses,
+        le_extra_node_masses,
         sensor_points_indices,
         LE_points,
         TE_points,
         is_strut,
         total_area,
+        le_surface_area_used,
+        strut_surface_area_used,
         used_le_to_strut_ratio,
     ) = find_mass_distributions(
         wing_sections_data,
         total_wing_mass,
         canopy_kg_p_sqm,
         le_to_strut_mass_ratio,
+        tube_kg_p_sqm,
         sensor_mass,
+        mid_span_valve_weight=mid_span_valve_weight,
+        strut_tube_weight=strut_tube_weight,
         is_strut=is_strut,
         tube_data=tube_data,
     )
@@ -692,6 +804,7 @@ def compute_structural_node_masses(
         le_node_masses,
         strut_node_masses,
         le_tip_te_masses,
+        le_extra_node_masses,
         sensor_mass,
         panel_canopy_mass_list,
         sensor_points_indices,
@@ -947,7 +1060,10 @@ def main(
     total_wing_mass=10.0,
     canopy_kg_p_sqm=0.05,
     le_to_strut_mass_ratio=None,
+    tube_kg_p_sqm=None,
     sensor_mass=0.5,
+    mid_span_valve_weight=0.0,
+    strut_tube_weight=0.0,
     desired_point=[0, 0, 0],
     is_show_plot=True,
     include_bridle_mass=True,
@@ -960,6 +1076,9 @@ def main(
     le_to_strut_mass_ratio : float or None
         If None, auto-derived from tube surface areas in struc_geometry_all_in_surfplan.yaml.
         If that file is absent, falls back to 0.7.
+    tube_kg_p_sqm : float or None
+        If provided, LE+strut tube mass is computed directly from cylindrical
+        surface area * tube_kg_p_sqm (requires tube geometry YAML).
     """
     # Load geometry from YAML
     with open(yaml_file_path, "r") as f:
@@ -985,30 +1104,38 @@ def main(
         le_node_masses,
         strut_node_masses,
         le_tip_te_masses,
+        le_extra_node_masses,
         sensor_points_indices,
         LE_points,
         TE_points,
         is_strut,
         total_area,
+        le_surface_area_used,
+        strut_surface_area_used,
         used_le_to_strut_ratio,
     ) = find_mass_distributions(
         wing_sections,
         total_wing_mass,
         canopy_kg_p_sqm,
         le_to_strut_mass_ratio,
+        tube_kg_p_sqm,
         sensor_mass,
+        mid_span_valve_weight=mid_span_valve_weight,
+        strut_tube_weight=strut_tube_weight,
         is_strut=is_strut,
         tube_data=tube_data,
     )
-    wing_nodes = distribute_mass_over_nodes(
+    wing_nodes, mass_audit = distribute_mass_over_nodes(
         le_node_masses,
         strut_node_masses,
         le_tip_te_masses,
+        le_extra_node_masses,
         sensor_mass,
         panel_canopy_mass_list,
         sensor_points_indices,
         LE_points,
         TE_points,
+        return_mass_audit=True,
     )
     nodes = list(wing_nodes)
 
@@ -1031,11 +1158,19 @@ def main(
     print(f"\n--- INPUT ---")
     print(f"total_wing_mass: {total_wing_mass}")
     print(f"canopy_kg_p_sqm: {canopy_kg_p_sqm}")
-    ratio_source = (
-        "auto (surface area)" if le_to_strut_mass_ratio is None else "user-specified"
-    )
+    if tube_kg_p_sqm is not None:
+        ratio_source = "tube_kg_p_sqm (area-based)"
+    else:
+        ratio_source = (
+            "auto (surface area)"
+            if le_to_strut_mass_ratio is None
+            else "user-specified"
+        )
     print(f"le_to_strut_mass_ratio: {used_le_to_strut_ratio:.4f} ({ratio_source})")
+    print(f"tube_kg_p_sqm: {tube_kg_p_sqm}")
     print(f"sensor_mass: {sensor_mass}")
+    print(f"mid_span_valve_weight: {mid_span_valve_weight}")
+    print(f"strut_tube_weight: {strut_tube_weight}")
     print(f"include_bridle_mass: {include_bridle_mass}")
     print(
         f"tube_data: {'loaded from struc_geometry_all_in_surfplan.yaml' if tube_data is not None else 'not available (uniform fallback)'}"
@@ -1047,6 +1182,59 @@ def main(
     print(
         f"Wing node mass:         {wing_node_mass:.2f} kg (target total_wing_mass={total_wing_mass:.2f} kg)"
     )
+    # Component-based mass audit (wing only, excludes optional bridle).
+    le_component_mass = float(np.sum(le_node_masses) + np.sum(le_tip_te_masses))
+    strut_component_mass = float(2.0 * np.sum(strut_node_masses))
+    canopy_component_mass = float(total_canopy_mass)
+    sensor_component_mass = float(sensor_mass)
+    extra_component_mass = float(np.sum(le_extra_node_masses))
+    valve_component_mass = (
+        float(mid_span_valve_weight) if len(_get_mid_span_le_indices(len(LE_points))) > 0 else 0.0
+    )
+    # Keep this tied to actual distributed extras, so it reflects true applied mass.
+    strut_tube_component_mass = max(0.0, extra_component_mass - valve_component_mass)
+
+    pre_correction_mass = (
+        canopy_component_mass
+        + le_component_mass
+        + strut_component_mass
+        + sensor_component_mass
+        + valve_component_mass
+        + strut_tube_component_mass
+    )
+    corrected_mass = float(mass_audit["corrected_mass"])
+    delta_pre = pre_correction_mass - total_wing_mass
+    if abs(delta_pre) <= 1e-9:
+        delta_pre = 0.0
+    le_area_label = (
+        f"{le_surface_area_used:.6f} m^2"
+        if le_surface_area_used is not None
+        else "n/a (uniform fallback)"
+    )
+    strut_area_label = (
+        f"{strut_surface_area_used:.6f} m^2"
+        if strut_surface_area_used is not None
+        else "n/a (uniform fallback)"
+    )
+    print(
+        f"  canopy mass contribution:       {canopy_component_mass:.6f} kg "
+        f"(surface area used: {total_area:.6f} m^2)"
+    )
+    print(
+        f"  LE mass contribution:           {le_component_mass:.6f} kg "
+        f"(surface area used: {le_area_label})"
+    )
+    print(
+        f"  strut mass contribution:        {strut_component_mass:.6f} kg "
+        f"(surface area used: {strut_area_label})"
+    )
+    print(f"  sensor mass contribution:       {sensor_component_mass:.6f} kg")
+    print(f"  mid-span valve contribution:    {valve_component_mass:.6f} kg")
+    print(f"  strut-tube mass contribution:   {strut_tube_component_mass:.6f} kg")
+    print(f"Sum of nodal mass pre correction: {pre_correction_mass:.6f} kg")
+    print(f"Total wing mass should be:        {total_wing_mass:.6f} kg")
+    print(f"Delta (components - target):      {delta_pre:+.6f} kg")
+    print(f"Sum of corrected nodal mass:      {corrected_mass:.6f} kg")
     print(
         f"Bridle line mass:       {total_bridle_mass:.3f} kg ({n_bridle_segments} bridle segments)"
     )

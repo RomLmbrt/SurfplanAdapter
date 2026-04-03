@@ -8,6 +8,8 @@ def main(
     canopy_kg_p_sqm=0.1,  # 100g/m2
     le_to_strut_mass_ratio=None,  # if None it is auto-derived
     sensor_mass=0.0,
+    mid_span_valve_weight=0.0,
+    strut_tube_weight=0.0,
     include_bridle_mass=True,
     is_show_plot=True,
     desired_point=[0, 0, 0],
@@ -24,6 +26,8 @@ def main(
         canopy_kg_p_sqm=canopy_kg_p_sqm,
         le_to_strut_mass_ratio=le_to_strut_mass_ratio,
         sensor_mass=sensor_mass,
+        mid_span_valve_weight=mid_span_valve_weight,
+        strut_tube_weight=strut_tube_weight,
         include_bridle_mass=include_bridle_mass,
         desired_point=desired_point,
         is_show_plot=is_show_plot,

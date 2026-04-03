@@ -176,7 +176,10 @@ def main(
     total_wing_mass=10.0,
     canopy_kg_p_sqm=0.05,
     le_to_strut_mass_ratio=None,
+    tube_kg_p_sqm=None,
     sensor_mass=0.0,
+    mid_span_valve_weight=0.0,
+    strut_tube_weight=0.0,
 ):
     yaml_file_path = Path(yaml_file_path.parent / "struc_geometry.yaml")
 
@@ -348,7 +351,10 @@ def main(
                 total_wing_mass=total_wing_mass,
                 canopy_kg_p_sqm=canopy_kg_p_sqm,
                 le_to_strut_mass_ratio=le_to_strut_mass_ratio,
+                tube_kg_p_sqm=tube_kg_p_sqm,
                 sensor_mass=sensor_mass,
+                mid_span_valve_weight=mid_span_valve_weight,
+                strut_tube_weight=strut_tube_weight,
                 struc_config=tube_config,
             )
 
