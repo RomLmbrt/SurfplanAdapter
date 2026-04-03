@@ -85,4 +85,4 @@ Copyright (c) 2026 Jelle Poland (TU Delft), Romain Lambert ([beyond the sea](htt
 
 Copyright (c) 2025 Jelle Poland (TU Delft)
 
-Copyright (c) 2024 Jelle Poland (TU Delft), Corentin Tan ([beyond the sea](https://beyond-the-sea.com/en/)), Tom Mooijman ([Kitepower]([https://beyond-the-sea.com/en/](https://thekitepower.com/))
+Copyright (c) 2024 Jelle Poland (TU Delft), Corentin Tan ([beyond the sea](https://beyond-the-sea.com/en/)), Tom Mooijman ([Kitepower](https://thekitepower.com/))
