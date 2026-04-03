@@ -86,9 +86,3 @@ Copyright (c) 2024-2025-2026 Jelle Poland (TU Delft)
 Copyright (c) 2024 Tom Mooijman (Kitepower)
 
 Copyright (c) 2024 Corentin Tan (BeyondTheSea)
-
-## Help and Documentation
-
-- [AWE Group Developer Guide](https://awegroup.github.io/developer-guide/)
-- [Changelog](changelog.md)
-- [Implementation Summary](IMPLEMENTATION_SUMMARY.md)
