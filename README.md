@@ -59,7 +59,7 @@ Run the following from the repository root, to test the workflow with the [TUDEL
 
 If you use this project in your research, please cite:
 ```bibtex
-@software{surfplanadapter2025,
+@software{surfplanadapter2026,
   author = {Poland, Jelle and Mooijman, Tom and Tan, Corentin},
   title = {SurfplanAdapter},
   year = {2026},
