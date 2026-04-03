@@ -13,24 +13,24 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
   
 ## Installation Instructions
 1. Install by running
-Linux: 
-   
-    ```bash
-    git clone git@github.com:jellepoland/SurfplanAdapter.git && \
-    cd SurfplanAdapter && \
-    python3 -m venv venv && \
-    source venv/bin/activate && \
-    pip install -e .[dev]
-    ```
-    
-Windows:
-    
-    ```bash
-    git clone git@github.com:jellepoland/SurfplanAdapter.git; `
-    cd SurfplanAdapter; `
-    python -m venv venv; `
-    .\venv\Scripts\Activate.ps1; `
-    pip install -e .[dev]
+  Linux: 
+     
+      ```bash
+      git clone git@github.com:jellepoland/SurfplanAdapter.git && \
+      cd SurfplanAdapter && \
+      python3 -m venv venv && \
+      source venv/bin/activate && \
+      pip install -e .[dev]
+      ```
+      
+  Windows:
+      
+      ```bash
+      git clone git@github.com:jellepoland/SurfplanAdapter.git; `
+      cd SurfplanAdapter; `
+      python -m venv venv; `
+      .\venv\Scripts\Activate.ps1; `
+      pip install -e .[dev]
     ```
 2. Verify working, by running the workflow for the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
   ```bash
