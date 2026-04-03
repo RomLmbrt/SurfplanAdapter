@@ -60,7 +60,7 @@ Run the following from the repository root, to test the workflow with the [TUDEL
 If you use this project in your research, please cite:
 ```bibtex
 @software{surfplanadapter2026,
-  author = {Poland, Jelle and Mooijman, Tom and Tan, Corentin},
+  author = {Poland, Jelle and Mooijman, Tom and Tan, Corentin and Romain, Lambert},
   title = {SurfplanAdapter},
   year = {2026},
   url = {https://github.com/jellepoland/SurfplanAdapter}
@@ -81,8 +81,8 @@ Prof.dr. H.G.C. (Henri) Werij, Dean of Aerospace Engineering
 
 ### Copyright
 
-Copyright (c) 2024-2025-2026 Jelle Poland (TU Delft)
+Copyright (c) 2026 Jelle Poland (TU Delft), Romain Lambert ([beyond the sea](https://beyond-the-sea.com/en/))
 
-Copyright (c) 2024 Tom Mooijman (Kitepower)
+Copyright (c) 2025 Jelle Poland (TU Delft)
 
-Copyright (c) 2024 Corentin Tan (BeyondTheSea)
+Copyright (c) 2024 Jelle Poland (TU Delft), Corentin Tan ([beyond the sea](https://beyond-the-sea.com/en/)), Tom Mooijman ([Kitepower]([https://beyond-the-sea.com/en/](https://thekitepower.com/))
