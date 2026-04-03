@@ -36,7 +36,7 @@ Run the following from the repository root, to test the workflow with the [TUDEL
     python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
 ```
 
-## Processing your Surfplan Design
+## Processing your own Surfplan Design
 
 1. Export your kite design from SurfPlan:
    - Export the main design as a `.txt` file.
