@@ -12,7 +12,7 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
 - [ASKITE](https://github.com/awegroup/ASKITE) for coupled aero-structural analysis, integrating the toolchains mentioned above.
   
 ## Installation Instructions
-
+1. Install by running
 Linux: 
    
     ```bash
@@ -32,9 +32,7 @@ Windows:
     .\venv\Scripts\Activate.ps1; `
     pip install -e .[dev]
     ```
-
-## Quick-test-run
-Run the following from the repository root, to test the workflow with the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
+2. Verify working, by running the workflow for the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
   ```bash
   python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
   ```
