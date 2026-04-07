@@ -856,6 +856,134 @@ def calculate_cg(nodes):
     return x_cg, y_cg, z_cg
 
 
+def _extract_wing_nodes_from_struc_geometry(config):
+    """
+    Build wing nodes and per-node masses from struc_geometry.yaml data.
+
+    Mass mapping uses wing_elements entries and distributes each element mass
+    equally to its two endpoint particles from wing_connections.
+    """
+    wing_particles = config.get("wing_particles")
+    wing_connections = config.get("wing_connections")
+    wing_elements = config.get("wing_elements")
+
+    if not (wing_particles and wing_connections and wing_elements):
+        raise ValueError(
+            "struc_geometry input requires wing_particles, wing_connections, "
+            "and wing_elements sections."
+        )
+
+    wp_headers = _get_header_map(wing_particles)
+    wc_headers = _get_header_map(wing_connections)
+    we_headers = _get_header_map(wing_elements)
+
+    wp_id_idx = wp_headers.get("id", 0)
+    wp_x_idx = wp_headers.get("x", 1)
+    wp_y_idx = wp_headers.get("y", 2)
+    wp_z_idx = wp_headers.get("z", 3)
+
+    wc_name_idx = wc_headers.get("name", 0)
+    wc_ci_idx = wc_headers.get("ci", 1)
+    wc_cj_idx = wc_headers.get("cj", 2)
+
+    we_name_idx = we_headers.get("name", 0)
+    we_mass_idx = we_headers.get("m", 4)
+
+    wing_coords = {}
+    wing_ids_in_order = []
+    for row in wing_particles.get("data", []):
+        if not row:
+            continue
+        node_id = int(row[wp_id_idx])
+        wing_ids_in_order.append(node_id)
+        wing_coords[node_id] = np.array(
+            [
+                _safe_float(row[wp_x_idx]),
+                _safe_float(row[wp_y_idx]),
+                _safe_float(row[wp_z_idx]),
+            ],
+            dtype=float,
+        )
+
+    if not wing_coords:
+        raise ValueError("No wing_particles found in struc_geometry input.")
+
+    conn_by_name = defaultdict(list)
+    strut_pairs = set()
+    for row in wing_connections.get("data", []):
+        if not row:
+            continue
+        name = str(row[wc_name_idx])
+        ci = int(row[wc_ci_idx])
+        cj = int(row[wc_cj_idx])
+        conn_by_name[name].append((ci, cj))
+        if name.startswith("strut_"):
+            strut_pairs.add(tuple(sorted((ci, cj))))
+
+    connection_name_use_count = defaultdict(int)
+    node_masses = defaultdict(float)
+    wing_element_segments = []
+    total_element_mass = 0.0
+    unresolved_element_links = 0
+    invalid_connection_refs = 0
+
+    for row in wing_elements.get("data", []):
+        if not row:
+            continue
+        name = str(row[we_name_idx])
+        mass = _safe_float(row[we_mass_idx], 0.0)
+        total_element_mass += mass
+
+        use_idx = connection_name_use_count[name]
+        connection_name_use_count[name] += 1
+        if use_idx >= len(conn_by_name[name]):
+            unresolved_element_links += 1
+            continue
+
+        ci, cj = conn_by_name[name][use_idx]
+        if ci not in wing_coords or cj not in wing_coords:
+            invalid_connection_refs += 1
+            continue
+
+        node_masses[ci] += 0.5 * mass
+        node_masses[cj] += 0.5 * mass
+        wing_element_segments.append((wing_coords[ci], wing_coords[cj], name))
+
+    nodes = [
+        [wing_coords[node_id], float(node_masses.get(node_id, 0.0))]
+        for node_id in wing_ids_in_order
+    ]
+
+    # Try to recover LE/TE rib ordering from odd/even node IDs.
+    LE_points = None
+    TE_points = None
+    is_strut = None
+    odd_ids = sorted([node_id for node_id in wing_coords.keys() if node_id % 2 == 1])
+    if odd_ids:
+        rib_pairs = []
+        for le_id in odd_ids:
+            te_id = le_id + 1
+            if te_id in wing_coords:
+                rib_pairs.append((le_id, te_id))
+        if len(rib_pairs) == len(odd_ids):
+            LE_points = np.array([wing_coords[pair[0]] for pair in rib_pairs], dtype=float)
+            TE_points = np.array([wing_coords[pair[1]] for pair in rib_pairs], dtype=float)
+            is_strut = np.array(
+                [tuple(sorted(pair)) in strut_pairs for pair in rib_pairs], dtype=bool
+            )
+
+    return (
+        nodes,
+        wing_element_segments,
+        LE_points,
+        TE_points,
+        is_strut,
+        total_element_mass,
+        unresolved_element_links,
+        invalid_connection_refs,
+    )
+
+
 def plot_nodes(
     nodes,
     x_cg,
@@ -865,6 +993,9 @@ def plot_nodes(
     LE_points=None,
     TE_points=None,
     is_strut=None,
+    inertia_tensor=None,
+    wing_node_count=None,
+    wing_element_segments=None,
 ):
     """
     Parameters
@@ -879,6 +1010,13 @@ def plot_nodes(
         Trailing-edge points corresponding to each rib.
     is_strut : array-like of bool, shape (n_ribs,), optional
         Boolean flags indicating where struts exist.
+    inertia_tensor : np.ndarray, shape (3, 3), optional
+        Inertia tensor to display in the plot.
+    wing_node_count : int, optional
+        Number of wing nodes at the start of `nodes`; remaining nodes are drawn
+        as non-wing (e.g. bridle) nodes.
+    wing_element_segments : list, optional
+        Sequence of (p1, p2, name) tuples for plotting explicit wing elements.
     """
 
     # Quick helper for setting 3D axes to equal scale
@@ -913,15 +1051,46 @@ def plot_nodes(
     node_positions = np.array([node[0] for node in nodes])  # shape (N, 3)
     node_masses = np.array([node[1] for node in nodes])  # shape (N,)
 
-    # Scatter plot of all nodes, colored by mass
+    if wing_node_count is None:
+        wing_node_count = len(nodes)
+    wing_node_count = int(np.clip(wing_node_count, 0, len(nodes)))
+
+    wing_positions = node_positions[:wing_node_count]
+    wing_masses = node_masses[:wing_node_count]
+    non_wing_positions = node_positions[wing_node_count:]
+    non_wing_masses = node_masses[wing_node_count:]
+    mass_vmin = float(np.min(node_masses))
+    mass_vmax = float(np.max(node_masses))
+
+    if len(non_wing_positions) > 0:
+        ax.scatter(
+            non_wing_positions[:, 0],
+            non_wing_positions[:, 1],
+            non_wing_positions[:, 2],
+            c=non_wing_masses,
+            cmap=cm.cool,
+            vmin=mass_vmin,
+            vmax=mass_vmax,
+            s=50,
+            alpha=0.9,
+            label="Non-wing nodes colored by mass",
+            depthshade=False,
+            zorder=3,
+        )
+
+    # Scatter plot of wing nodes, colored by mass
     sc = ax.scatter(
-        node_positions[:, 0],
-        node_positions[:, 1],
-        node_positions[:, 2],
-        c=node_masses,
+        wing_positions[:, 0],
+        wing_positions[:, 1],
+        wing_positions[:, 2],
+        c=wing_masses,
         cmap=cm.cool,
+        vmin=mass_vmin,
+        vmax=mass_vmax,
         s=50,
         alpha=0.9,
+        depthshade=False,
+        zorder=10,
         label="Wing Nodes colored by mass",
     )
 
@@ -933,6 +1102,8 @@ def plot_nodes(
         c="red",
         marker="x",
         s=100,
+        depthshade=False,
+        zorder=15,
         label=f"Center of Gravity ({x_cg:.2f}, {y_cg:.2f}, {z_cg:.2f})",
     )
 
@@ -944,10 +1115,53 @@ def plot_nodes(
         c="green",
         marker="x",
         s=100,
+        depthshade=False,
+        zorder=14,
         label=f"Point of Inertia Calculation ({desired_point[0]:.2f}, {desired_point[1]:.2f}, {desired_point[2]:.2f})",
     )
-    # Optional: draw the LE “backbone” if provided
-    if LE_points is not None and len(LE_points) > 1:
+
+    has_wing_element_segments = (
+        wing_element_segments is not None and len(wing_element_segments) > 0
+    )
+
+    if has_wing_element_segments:
+        used_labels = set()
+        for p1, p2, name in wing_element_segments:
+            color = "grey"
+            linewidth = 0.6
+            label = "Wing elements"
+            if str(name).startswith("le_"):
+                color = "black"
+                linewidth = 2.0
+                label = "Leading Edge"
+            elif str(name).startswith("strut_"):
+                color = "black"
+                linewidth = 1.6
+                label = "Strut"
+            elif str(name).startswith("te_"):
+                color = "grey"
+                linewidth = 0.8
+                label = "Trailing Edge"
+            elif str(name).startswith("dia_"):
+                color = "lightgrey"
+                linewidth = 0.6
+                label = "Diagonal"
+            if label in used_labels:
+                label = ""
+            else:
+                used_labels.add(label)
+            ax.plot(
+                [p1[0], p2[0]],
+                [p1[1], p2[1]],
+                [p1[2], p2[2]],
+                c=color,
+                linewidth=linewidth,
+                zorder=1,
+                label=label,
+            )
+
+    # Optional: draw LE/TE simplified structure if explicit segments are not provided
+    if (not has_wing_element_segments) and LE_points is not None and len(LE_points) > 1:
         LE_points = np.array(LE_points)  # shape (n_ribs, 3)
         # add first and last TE_points to this list
         if TE_points is not None:
@@ -958,11 +1172,14 @@ def plot_nodes(
             LE_points_with_tips[:, 2],
             c="black",
             linewidth=5,
+            zorder=1,
             label="Leading Edge",
         )
 
     # Optional: draw each strut if we have both LE, TE, and is_strut info
     if (
+        not has_wing_element_segments
+        and
         LE_points is not None
         and TE_points is not None
         and is_strut is not None
@@ -976,6 +1193,7 @@ def plot_nodes(
                     [LE_points[i, 2], TE_points[i, 2]],
                     c="black",
                     linewidth=3,
+                    zorder=2,
                     label="Strut" if i == 1 else "",
                 )
             else:
@@ -986,11 +1204,12 @@ def plot_nodes(
                     c="grey",
                     linewidth=0.5,
                     linestyle="-",
+                    zorder=1,
                     label="Rib lines" if i == 0 else "",
                 )
 
     # Add TE line
-    if TE_points is not None and len(TE_points) > 1:
+    if (not has_wing_element_segments) and TE_points is not None and len(TE_points) > 1:
         TE_points = np.array(TE_points)
         ax.plot(
             TE_points[:, 0],
@@ -998,12 +1217,43 @@ def plot_nodes(
             TE_points[:, 2],
             c="grey",
             linewidth=0.5,
+            zorder=1,
             label="Trailing Edge",
         )
 
     # Add color bar for node masses
     cbar = plt.colorbar(sc, ax=ax, shrink=0.6)
     cbar.set_label("Node Mass (kg)")
+
+    if inertia_tensor is not None:
+        inertia_text = "\n".join(
+            [
+                "Inertia tensor [kg m^2]",
+                f"Ixx: {inertia_tensor[0, 0]:.2f}",
+                f"Iyy: {inertia_tensor[1, 1]:.2f}",
+                f"Izz: {inertia_tensor[2, 2]:.2f}",
+                f"Ixy: {inertia_tensor[0, 1]:.2f}",
+                f"Ixz: {inertia_tensor[0, 2]:.2f}",
+                f"Iyz: {inertia_tensor[1, 2]:.2f}",
+            ]
+        )
+        ax.text2D(
+            0.02,
+            0.98,
+            inertia_text,
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+            family="monospace",
+            bbox={
+                "boxstyle": "round",
+                "facecolor": "white",
+                "edgecolor": "0.7",
+                "alpha": 0.9,
+            },
+            zorder=20,
+        )
 
     # Label axes and set 3D axes to equal scale
     ax.set_xlabel("X (m)")
@@ -1055,6 +1305,35 @@ def calculate_inertia(nodes, desired_point):
     return inertia_tensor
 
 
+def _resolve_desired_point(desired_point, x_cg, y_cg, z_cg):
+    """
+    Resolve inertia reference point.
+
+    Rules
+    -----
+    - None -> [0, 0, 0]
+    - "CG" (case-insensitive) -> [x_cg, y_cg, z_cg]
+    - [x, y, z] / (x, y, z) / np.ndarray(3,) -> explicit point
+    """
+    if desired_point is None:
+        return np.array([0.0, 0.0, 0.0], dtype=float)
+
+    if isinstance(desired_point, str):
+        if desired_point.strip().upper() == "CG":
+            return np.array([x_cg, y_cg, z_cg], dtype=float)
+        raise ValueError(
+            "desired_point as string must be 'CG' (case-insensitive), "
+            f"got '{desired_point}'."
+        )
+
+    desired_point_arr = np.array(desired_point, dtype=float).reshape(-1)
+    if desired_point_arr.size != 3:
+        raise ValueError(
+            "desired_point must be None, 'CG', or a 3D coordinate [x, y, z]."
+        )
+    return desired_point_arr
+
+
 def main(
     yaml_file_path,
     total_wing_mass=10.0,
@@ -1064,12 +1343,12 @@ def main(
     sensor_mass=0.5,
     mid_span_valve_weight=0.0,
     strut_tube_weight=0.0,
-    desired_point=[0, 0, 0],
+    desired_point=None,
     is_show_plot=True,
     include_bridle_mass=True,
 ):
     """
-    Calculate CG and inertia using a config_kite.yaml file.
+    Calculate CG and inertia from either aero_geometry.yaml or struc_geometry.yaml.
 
     Parameters
     ----------
@@ -1079,10 +1358,78 @@ def main(
     tube_kg_p_sqm : float or None
         If provided, LE+strut tube mass is computed directly from cylindrical
         surface area * tube_kg_p_sqm (requires tube geometry YAML).
+    desired_point : None | "CG" | array-like(3)
+        Inertia reference point. None defaults to [0, 0, 0]. "CG" uses the
+        computed center of gravity. A 3D coordinate uses that explicit point.
     """
     # Load geometry from YAML
     with open(yaml_file_path, "r") as f:
         config = yaml.safe_load(f)
+
+    is_struc_geometry_mode = all(
+        key in config for key in ("wing_particles", "wing_connections", "wing_elements")
+    ) and ("wing_sections" not in config)
+
+    if is_struc_geometry_mode:
+        (
+            nodes,
+            wing_element_segments,
+            LE_points,
+            TE_points,
+            is_strut,
+            total_element_mass,
+            unresolved_element_links,
+            invalid_connection_refs,
+        ) = _extract_wing_nodes_from_struc_geometry(config)
+
+        x_cg, y_cg, z_cg = calculate_cg(nodes)
+        desired_point_resolved = _resolve_desired_point(desired_point, x_cg, y_cg, z_cg)
+        inertia_tensor = calculate_inertia(nodes, desired_point_resolved)
+
+        print(f"\n--- INPUT ---")
+        print(f"yaml_file: {yaml_file_path}")
+        print("mode: struc_geometry (wing_elements -> node masses)")
+        print("include_bridle_mass: ignored (wing-only mode)")
+        print(f"\n--- OUTPUT --- ")
+        print(f"Wing element mass sum: {total_element_mass:.6f} kg")
+        if unresolved_element_links > 0:
+            print(
+                f"Unresolved wing_elements rows (name-to-connection mismatch): {unresolved_element_links}"
+            )
+        if invalid_connection_refs > 0:
+            print(
+                f"Invalid wing_connections references (missing wing_particles): {invalid_connection_refs}"
+            )
+        print(f"Total wing node mass: {sum([node[1] for node in nodes]):.6f} kg")
+        print(f"center of gravity: [{x_cg:.2f}, {y_cg:.2f}, {z_cg:.2f}] [m]")
+        print(
+            "point around intertia is calculated: "
+            f"{desired_point_resolved.tolist()} [m]"
+        )
+        print("Inertia tensor:")
+        print("Ixx: {:.2f}".format(inertia_tensor[0, 0]))
+        print("Iyy: {:.2f}".format(inertia_tensor[1, 1]))
+        print("Izz: {:.2f}".format(inertia_tensor[2, 2]))
+        print("Ixy: {:.2f}".format(inertia_tensor[0, 1]))
+        print("Ixz: {:.2f}".format(inertia_tensor[0, 2]))
+        print("Iyz: {:.2f}".format(inertia_tensor[1, 2]))
+
+        if is_show_plot:
+            plot_nodes(
+                nodes,
+                x_cg,
+                y_cg,
+                z_cg,
+                desired_point_resolved,
+                LE_points=LE_points,
+                TE_points=TE_points,
+                is_strut=is_strut,
+                inertia_tensor=inertia_tensor,
+                wing_node_count=len(nodes),
+                wing_element_segments=wing_element_segments,
+            )
+        return
+
     # Extract wing_sections data
     wing_sections = config["wing_sections"]["data"]
     wing_airfoils = config.get("wing_airfoils", {}).get("data", [])
@@ -1152,7 +1499,8 @@ def main(
         nodes.extend(bridle_nodes)
 
     x_cg, y_cg, z_cg = calculate_cg(nodes)
-    inertia_tensor = calculate_inertia(nodes, desired_point)
+    desired_point_resolved = _resolve_desired_point(desired_point, x_cg, y_cg, z_cg)
+    inertia_tensor = calculate_inertia(nodes, desired_point_resolved)
 
     # printing
     print(f"\n--- INPUT ---")
@@ -1245,7 +1593,10 @@ def main(
         print(f"Bridle source YAML:     {source_label}")
     print(f"Total node mass:        {total_node_mass:.2f} kg (wing + optional bridle)")
     print(f"center of gravity: [{x_cg:.2f}, {y_cg:.2f}, {z_cg:.2f}] [m]")
-    print(f"point around intertia is calculated: {desired_point} [m]")
+    print(
+        "point around intertia is calculated: "
+        f"{desired_point_resolved.tolist()} [m]"
+    )
     print("Inertia tensor:")
     print("Ixx: {:.2f}".format(inertia_tensor[0, 0]))
     print("Iyy: {:.2f}".format(inertia_tensor[1, 1]))
@@ -1260,8 +1611,10 @@ def main(
             x_cg,
             y_cg,
             z_cg,
-            desired_point,
+            desired_point_resolved,
             LE_points=LE_points,
             TE_points=TE_points,
             is_strut=is_strut,  # so we can draw strut lines
+            inertia_tensor=inertia_tensor,
+            wing_node_count=len(wing_nodes),
         )

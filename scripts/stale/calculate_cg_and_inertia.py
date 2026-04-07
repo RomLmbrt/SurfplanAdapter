@@ -4,6 +4,8 @@ from SurfplanAdapter import calculate_cg_and_inertia
 
 def main(
     kite_name="TUDELFT_V3_KITE",
+    yaml_filename="aero_geometry.yaml",
+    yaml_file_path=None,
     total_wing_mass=10.0,
     canopy_kg_p_sqm=0.1,  # 100g/m2
     le_to_strut_mass_ratio=None,  # if None it is auto-derived
@@ -14,11 +16,14 @@ def main(
     is_show_plot=True,
     desired_point=[0, 0, 0],
 ):
-    """Calculate CG and inertia for a given kite_name. Requires config_kite.yaml to exist or will generate it."""
-    PROJECT_DIR = Path(__file__).resolve().parents[1]
+    """Calculate CG and inertia for aero_geometry.yaml or struc_geometry.yaml."""
+    PROJECT_DIR = Path(__file__).resolve().parents[2]
 
     save_dir = Path(PROJECT_DIR) / "processed_data" / f"{kite_name}"
-    yaml_file_path = Path(save_dir) / "aero_geometry.yaml"
+    if yaml_file_path is None:
+        yaml_file_path = Path(save_dir) / yaml_filename
+    else:
+        yaml_file_path = Path(yaml_file_path)
 
     calculate_cg_and_inertia.main(
         yaml_file_path,
@@ -35,4 +40,4 @@ def main(
 
 
 if __name__ == "__main__":
-    main()
+    main(yaml_filename="struc_geometry.yaml")

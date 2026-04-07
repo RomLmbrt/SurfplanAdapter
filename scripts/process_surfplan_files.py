@@ -179,7 +179,7 @@ def main(
     print("=" * 60)
 
     calculate_cg_and_inertia.main(
-        Path(save_dir) / "aero_geometry.yaml",
+        Path(save_dir) / "struc_geometry.yaml",
         total_wing_mass=total_wing_mass,
         canopy_kg_p_sqm=canopy_kg_p_sqm,
         le_to_strut_mass_ratio=le_to_strut_mass_ratio,

@@ -16,8 +16,8 @@ kite_name: TUDELFT_V3_KITE
 # ---------------------------------------------------------------
 is_with_struc_geometry_plot: false
 is_with_struc_geometry_all_in_surfplan_yaml: false
-is_with_airfoil_3d_plot: false
-is_with_cg_and_inertia_plot: false
+is_with_airfoil_3d_plot: True
+is_with_cg_and_inertia_plot: True
 is_with_spanwise_chamber_plot: false
 
 # ---------------------------------------------------------------
@@ -55,5 +55,6 @@ strut_tube_weight: 0.1
 # Add bridle masses to final CG/inertia node list.
 include_bridle_mass: false
 
-# Inertia reference point [x, y, z] [m].
-desired_point: [0, 0, 0]
+# Inertia reference point [x, y, z] [m]
+# One can provided either a generic point: [0,0,0] or 'CG'
+desired_point: 'CG'
