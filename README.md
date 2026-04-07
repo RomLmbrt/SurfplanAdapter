@@ -11,17 +11,20 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
 - [Particle_System_Simulator](https://github.com/awegroup/Particle_System_Simulator) for structural analysis.
 - [ASKITE](https://github.com/awegroup/ASKITE) for coupled aero-structural analysis, integrating the toolchains mentioned above.
   
-## Installation Instructions
-
-   Linux: 
+## Installation Instruction
+### 1. Install by running
+Linux: 
+   
     ```bash
     git clone git@github.com:jellepoland/SurfplanAdapter.git && \
     cd SurfplanAdapter && \
     python3 -m venv venv && \
     source venv/bin/activate && \
     pip install -e .[dev]
-    ```
-    Windows:
+      ```
+      
+Windows:
+    
     ```bash
     git clone git@github.com:jellepoland/SurfplanAdapter.git; `
     cd SurfplanAdapter; `
@@ -29,14 +32,12 @@ SurfplanAdapter converts design files from [SurfPlan](http://www.surfplan.com.au
     .\venv\Scripts\Activate.ps1; `
     pip install -e .[dev]
     ```
+### 2. Verify working, by running the workflow for the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
+  ```bash
+  python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
+  ```
 
-## Quick-test-run
-Run the following from the repository root, to test the workflow with the [TUDELFT_V3_KITE](https://awegroup.github.io/TUDELFT_V3_KITE/)
-```bash
-    python -m scripts.process_surfplan_files --kite_name=TUDELFT_V3_KITE
-```
-
-## Processing your Surfplan Design
+## Processing your own Surfplan Design
 
 1. Export your kite design from SurfPlan:
    - Export the main design as a `.txt` file.
@@ -52,38 +53,12 @@ Run the following from the repository root, to test the workflow with the [TUDEL
     python -m scripts.process_surfplan_files --kite_name=MY_NEW_KITE
     ```
 
-## Dependencies
-
-Core dependencies (see [pyproject.toml](pyproject.toml) for complete list):
-- **numpy**: Numerical computations and array operations
-- **matplotlib**: Plotting and visualization
-- **pyyaml**: YAML file handling
-- **scipy**: Scientific computing utilities
-
-Optional dependencies:
-- **VSM** (Vortex-Step-Method): For aerodynamic analysis
-- **pytest**: For running tests (dev)
-
-## LEI Airfoil Parametrization
-
-The tool uses a 6-parameter model for leading-edge inflatable (LEI) airfoils, based on the work of [K.R.G. Masure](https://resolver.tudelft.nl/uuid:865d59fc-ccff-462e-9bac-e81725f1c0c9):
-
-- **t**: Leading edge tube diameter (normalized by chord)
-- **η**: Chordwise camber position (0 to 1)
-- **κ**: Maximum camber height (normalized by chord)
-- **δ**: Trailing edge reflex angle (degrees)
-- **λ**: Trailing edge camber tension (0 to 1)
-- **φ**: Leading edge curvature tension (0 to 1)
-
-These parameters are automatically fitted to CAD-sliced profiles from Surfplan.
-
-
 ## Citation
 
 If you use this project in your research, please cite:
 ```bibtex
-@software{surfplanadapter2025,
-  author = {Poland, Jelle and Mooijman, Tom and Tan, Corentin},
+@software{surfplanadapter2026,
+  author = {Poland, Jelle and Mooijman, Tom and Tan, Corentin and Romain, Lambert},
   title = {SurfplanAdapter},
   year = {2026},
   url = {https://github.com/jellepoland/SurfplanAdapter}
@@ -104,14 +79,8 @@ Prof.dr. H.G.C. (Henri) Werij, Dean of Aerospace Engineering
 
 ### Copyright
 
-Copyright (c) 2024-2025-2026 Jelle Poland (TU Delft)
+Copyright (c) 2026 Jelle Poland (TU Delft), Romain Lambert ([beyond the sea](https://beyond-the-sea.com/en/))
 
-Copyright (c) 2024 Tom Mooijman (Kitepower)
+Copyright (c) 2025 Jelle Poland (TU Delft)
 
-Copyright (c) 2024 Corentin Tan (BeyondTheSea)
-
-## Help and Documentation
-
-- [AWE Group Developer Guide](https://awegroup.github.io/developer-guide/)
-- [Changelog](changelog.md)
-- [Implementation Summary](IMPLEMENTATION_SUMMARY.md)
+Copyright (c) 2024 Jelle Poland (TU Delft), Corentin Tan ([beyond the sea](https://beyond-the-sea.com/en/)), Tom Mooijman ([Kitepower](https://thekitepower.com/))
