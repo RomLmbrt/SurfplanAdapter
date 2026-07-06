@@ -77,6 +77,7 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
     bridle_connections_data += [
         ["steering_tape", 0, 0],
         ["depower_tape", 0, 0],
+        ["steering_tape", 0, 0],
     ]
 
     return {"headers": ["name", "ci", "cj"], "data": bridle_connections_data}
