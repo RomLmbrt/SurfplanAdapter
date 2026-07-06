@@ -1,9 +1,9 @@
 import os
 import yaml
 from pathlib import Path
-from SurfplanAdapter.process_bridle_lines import (
+from SurfplanAdapter.process_bridle_elements import (
     generate_bridle_connections_data,
-    generate_bridle_lines_data,
+    generate_bridle_elements_data,
     generate_bridle_nodes_data,
 )
 from SurfplanAdapter.process_wing import (
@@ -69,7 +69,7 @@ def create_wing_dict(wing_sections, wing_airfoils):
     }
 
 
-def create_bridle_dict(yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connections):
+def create_bridle_dict(yaml_data, bridle_nodes, bridle_elements_yaml, bridle_connections):
     yaml_data["bridle_nodes"] = {
         "# ---------------------------------------------------------------": None,
         "# headers:": None,
@@ -82,8 +82,8 @@ def create_bridle_dict(yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connec
         **bridle_nodes,
     }
 
-    yaml_data["  "] = None  # Empty line before bridle_lines
-    yaml_data["bridle_lines"] = {
+    yaml_data["  "] = None  # Empty line before bridle_elements
+    yaml_data["bridle_elements"] = {
         "# ---------------------------------------------------------------": None,
         "# headers:": None,
         "#   - name: string, line name": None,
@@ -92,7 +92,7 @@ def create_bridle_dict(yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connec
         "#   - material: string, material type (e.g., dyneema)": None,
         "#   - density: material density [kg/m^3]": None,
         "# ---------------------------------------------------------------": None,
-        **bridle_lines_yaml,
+        **bridle_elements_yaml,
     }
 
     yaml_data["   "] = None  # Empty line before bridle_connections
@@ -111,7 +111,7 @@ def create_bridle_dict(yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connec
 
 def main(
     ribs_data: list,
-    bridle_lines: list,
+    bridle_elements: list,
     yaml_file_path: Path = None,
     airfoil_type: str = "masure_regression",
     wing_yaml="aero_geometry.yaml",
@@ -147,7 +147,7 @@ def main(
         # Keep the applied frame rotation available for downstream processing.
         rib["vsm_y_rotation_rad"] = y_rotation_rad
 
-    for bridle_line in bridle_lines:
+    for bridle_line in bridle_elements:
         bridle_line[0] = rotate_coordinate_around_y_vsm(bridle_line[0], y_rotation_rad)
         bridle_line[1] = rotate_coordinate_around_y_vsm(bridle_line[1], y_rotation_rad)
 
@@ -159,16 +159,16 @@ def main(
     utils.save_to_yaml(yaml_data, f"{yaml_file_path.parent}/{wing_yaml}")
 
     # Add bridle data if available
-    if len(bridle_lines) > 0:
+    if len(bridle_elements) > 0:
         yaml_data[" "] = None  # Empty line before bridle_nodes
-        bridle_nodes = generate_bridle_nodes_data.main(bridle_lines)
+        bridle_nodes = generate_bridle_nodes_data.main(bridle_elements)
         bridle_connections = generate_bridle_connections_data.main(
-            bridle_lines, bridle_nodes, 0
+            bridle_elements, bridle_nodes, 0
         )
-        bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
+        bridle_elements_yaml = generate_bridle_elements_data.main(bridle_elements)
 
         yaml_data = create_bridle_dict(
-            yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connections
+            yaml_data, bridle_nodes, bridle_elements_yaml, bridle_connections
         )
     # Save to YAML
     utils.save_to_yaml(yaml_data, yaml_file_path)
@@ -176,7 +176,7 @@ def main(
     # create the struc_geometry.yaml with only struts and bridle lines
     create_struc_geometry_yaml.main(
         ribs_data,
-        bridle_lines,
+        bridle_elements,
         yaml_file_path,
         airfoil_type=airfoil_type,
         total_wing_mass=total_wing_mass,

@@ -1,9 +1,9 @@
 from pathlib import Path
 from collections import Counter
 import numpy as np
-from SurfplanAdapter.process_bridle_lines import (
+from SurfplanAdapter.process_bridle_elements import (
     generate_bridle_connections_data,
-    generate_bridle_lines_data,
+    generate_bridle_elements_data,
     generate_bridle_nodes_data,
 )
 from SurfplanAdapter.process_wing import (
@@ -74,9 +74,9 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     yaml_data["   "] = None
     yaml_data["bridle_connections"] = struc_geometry_dict["bridle_connections"]
 
-    # Add bridle_lines
+    # Add bridle_elements
     yaml_data["   "] = None
-    yaml_data["bridle_lines"] = struc_geometry_dict["bridle_lines"]
+    yaml_data["bridle_elements"] = struc_geometry_dict["bridle_elements"]
 
     return yaml_data
 
@@ -133,7 +133,7 @@ def transform_struc_geometry_all_in_yaml_format(struc_geometry_dict):
     yaml_data["   "] = None
     yaml_data["bridle_connections"] = struc_geometry_dict["bridle_connections"]
     yaml_data["   "] = None
-    yaml_data["bridle_lines"] = struc_geometry_dict["bridle_lines"]
+    yaml_data["bridle_elements"] = struc_geometry_dict["bridle_elements"]
 
     return yaml_data
 
@@ -170,7 +170,7 @@ def _build_tube_config_from_ribs(ribs_data):
 
 def main(
     ribs_data,
-    bridle_lines,
+    bridle_elements,
     yaml_file_path,
     airfoil_type: str = "masure_regression",
     total_wing_mass=10.0,
@@ -459,7 +459,7 @@ def main(
             )
 
     # now deal with the bridle lines
-    bridle_nodes = generate_bridle_nodes_data.main(bridle_lines)
+    bridle_nodes = generate_bridle_nodes_data.main(bridle_elements)
 
     #### the bridle_nodes should be transformed to the new_format FIRST
     #### to preserve the coordinate-to-ID mapping that bridle_connections rely on
@@ -480,9 +480,9 @@ def main(
 
     # Now generate bridle_connections using the same offset
     bridle_connections = generate_bridle_connections_data.main(
-        bridle_lines, bridle_nodes, len(wing_particles_data)
+        bridle_elements, bridle_nodes, len(wing_particles_data)
     )
-    bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
+    bridle_elements_yaml = generate_bridle_elements_data.main(bridle_elements)
 
     # Compose the final yaml_data dictionary
     struc_geometry_dict = {
@@ -491,30 +491,30 @@ def main(
         "wing_elements": wing_elements,
         "bridle_particles": bridle_particles,
         "bridle_connections": bridle_connections,
-        "bridle_lines": bridle_lines_yaml,
+        "bridle_elements": bridle_elements_yaml,
     }
 
     ### now we need to transform all this to the correct yaml format
     yaml_data = transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict)
 
     # # Add bridle data if available
-    # if len(bridle_lines) > 0:
+    # if len(bridle_elements) > 0:
     #     yaml_data[" "] = None  # Empty line before bridle_nodes
-    #     bridle_nodes = generate_bridle_nodes_data.main(bridle_lines)
+    #     bridle_nodes = generate_bridle_nodes_data.main(bridle_elements)
     #     bridle_connections = generate_bridle_connections_data.main(
-    #         bridle_lines, bridle_nodes
+    #         bridle_elements, bridle_nodes
     #     )
-    #     bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
+    #     bridle_elements_yaml = generate_bridle_elements_data.main(bridle_elements)
 
     #     yaml_data = create_bridle_dict(
-    #         yaml_data, bridle_nodes, bridle_lines_yaml, bridle_connections
+    #         yaml_data, bridle_nodes, bridle_elements_yaml, bridle_connections
     #     )
 
     # Save to YAML
     utils.save_to_yaml(yaml_data, yaml_file_path)
 
     # Create the extended Surfplan file with all sections
-    create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_lines, yaml_file_path)
+    create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_elements, yaml_file_path)
 
 
 def _calculate_le_diameter(rib):
@@ -677,7 +677,7 @@ def _build_leading_edge_tubes(ribs_data, node_map):
 
 def create_struc_geometry_all_in_surfplan_yaml(
     ribs_data,
-    bridle_lines,
+    bridle_elements,
     yaml_file_path,
 ):
     yaml_file_path = Path(yaml_file_path.parent / "struc_geometry_all_in_surfplan.yaml")
@@ -707,8 +707,8 @@ def create_struc_geometry_all_in_surfplan_yaml(
     strut_tubes = _build_strut_tubes(ribs_data, node_map)
     leading_edge_tubes = _build_leading_edge_tubes(ribs_data, node_map)
 
-    if len(bridle_lines) > 0:
-        bridle_nodes_raw = generate_bridle_nodes_data.main(bridle_lines)
+    if len(bridle_elements) > 0:
+        bridle_nodes_raw = generate_bridle_nodes_data.main(bridle_elements)
         last_wing_particle_id = (
             wing_particles_all["data"][-1][0] if wing_particles_all["data"] else 0
         )
@@ -720,13 +720,13 @@ def create_struc_geometry_all_in_surfplan_yaml(
             bridle_particles["data"].append([new_id, node[1], node[2], node[3]])
 
         bridle_connections = generate_bridle_connections_data.main(
-            bridle_lines, bridle_nodes_raw, len(wing_particles_all["data"])
+            bridle_elements, bridle_nodes_raw, len(wing_particles_all["data"])
         )
-        bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
+        bridle_elements_yaml = generate_bridle_elements_data.main(bridle_elements)
     else:
         bridle_particles = {"headers": ["id", "x", "y", "z"], "data": []}
         bridle_connections = {"headers": ["name", "ci", "cj"], "data": []}
-        bridle_lines_yaml = {
+        bridle_elements_yaml = {
             "headers": ["name", "l0", "d", "material", "linktype", "density"],
             "data": [],
         }
@@ -737,7 +737,7 @@ def create_struc_geometry_all_in_surfplan_yaml(
         "leading_edge_tubes": leading_edge_tubes,
         "bridle_particles": bridle_particles,
         "bridle_connections": bridle_connections,
-        "bridle_lines": bridle_lines_yaml,
+        "bridle_elements": bridle_elements_yaml,
     }
 
     yaml_data = transform_struc_geometry_all_in_yaml_format(struc_geometry_dict)

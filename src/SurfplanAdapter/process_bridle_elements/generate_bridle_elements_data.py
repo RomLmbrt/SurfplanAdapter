@@ -42,21 +42,21 @@ def _extract_fields(bridle_line, index):
     return p1, p2, name, length, diameter, material
 
 
-def main(bridle_lines):
+def main(bridle_elements):
     """
     Generate bridle lines data for YAML output.
 
     Parameters:
-        bridle_lines: List of bridle line data from main_process_surfplan
+        bridle_elements: List of bridle line data from main_process_surfplan
                      Canonical: [point1, point2, name, length, diameter, material]
                      Legacy supported: [point1, point2, diameter, name, length, material]
 
     Returns:
         dict: Bridle lines data formatted for YAML
     """
-    bridle_lines_data = []
+    bridle_elements_data = []
 
-    for i, bridle_line in enumerate(bridle_lines):
+    for i, bridle_line in enumerate(bridle_elements):
         if bridle_line and len(bridle_line) >= 5:
             p1, p2, name, length, diameter, material = _extract_fields(bridle_line, i)
 
@@ -71,7 +71,7 @@ def main(bridle_lines):
             # Internal convention is meters. Default to 2 mm when absent.
             line_diameter_m = diameter if diameter > 0 else 0.002
 
-            bridle_lines_data.append(
+            bridle_elements_data.append(
                 [
                     name,  # Use actual line name
                     float(rest_length),  # rest_length
@@ -84,5 +84,5 @@ def main(bridle_lines):
 
     return {
         "headers": ["name", "l0", "d", "material", "linktype", "density"],
-        "data": bridle_lines_data,
+        "data": bridle_elements_data,
     }

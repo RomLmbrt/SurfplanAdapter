@@ -35,7 +35,7 @@ def main(filepath):
         except ValueError:
             return default
 
-    bridle_lines = []
+    bridle_elements = []
     in_bridle_section = False
     header_skipped = False
 
@@ -106,7 +106,7 @@ def main(filepath):
             name = (
                 cleaned_parts[6].strip()
                 if len(cleaned_parts) > 6 and cleaned_parts[6].strip()
-                else f"line_{len(bridle_lines)+1}"
+                else f"line_{len(bridle_elements)+1}"
             )
 
             # Extract length using consistent default handling
@@ -129,10 +129,10 @@ def main(filepath):
             diameter = diameter * 0.001 if diameter is not None else 0.002
 
             bridle_line = [point1, point2, name, length, material, diameter]
-            bridle_lines.append(bridle_line)
+            bridle_elements.append(bridle_line)
 
-    if len(bridle_lines) > 0:
-        bridle_lines = [
+    if len(bridle_elements) > 0:
+        bridle_elements = [
             [
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[0]),  # point1
                 transform_coordinate_system_surfplan_to_VSM(bridle_line[1]),  # point2
@@ -141,7 +141,7 @@ def main(filepath):
                 bridle_line[5],  # diameter [m] (float)
                 bridle_line[4],  # material
             ]
-            for bridle_line in bridle_lines
+            for bridle_line in bridle_elements
         ]
 
-    return bridle_lines
+    return bridle_elements
