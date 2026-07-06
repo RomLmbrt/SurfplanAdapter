@@ -727,7 +727,7 @@ def create_struc_geometry_all_in_surfplan_yaml(
         bridle_particles = {"headers": ["id", "x", "y", "z"], "data": []}
         bridle_connections = {"headers": ["name", "ci", "cj"], "data": []}
         bridle_lines_yaml = {
-            "headers": ["name", "rest_length", "diameter", "material", "density"],
+            "headers": ["name", "l0", "d", "material", "linktype", "density"],
             "data": [],
         }
 

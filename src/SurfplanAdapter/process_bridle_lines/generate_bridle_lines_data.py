@@ -77,11 +77,12 @@ def main(bridle_lines):
                     float(rest_length),  # rest_length
                     float(line_diameter_m),  # diameter in meters
                     material if material else "dyneema",  # material
+                    'noncompressive', #linktype
                     970,  # density
                 ]
             )
 
     return {
-        "headers": ["name", "rest_length", "diameter", "material", "density"],
+        "headers": ["name", "l0", "d", "material", "linktype", "density"],
         "data": bridle_lines_data,
     }
