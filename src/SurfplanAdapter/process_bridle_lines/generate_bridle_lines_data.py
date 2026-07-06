@@ -81,6 +81,12 @@ def main(bridle_lines):
                     970,  # density
                 ]
             )
+    
+    # --- inject missing virtual lines (for AWETrim schema compatibility) ---
+    bridle_lines_data += [
+        ["steering_tape", 0.001, 0.002, "dyneema", "noncompressive", 970],
+        ["depower_tape", 0.001, 0.002, "dyneema", "noncompressive", 970],
+    ]
 
     return {
         "headers": ["name", "l0", "d", "material", "linktype", "density"],
