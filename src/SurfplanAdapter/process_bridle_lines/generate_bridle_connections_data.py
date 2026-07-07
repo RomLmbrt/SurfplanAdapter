@@ -75,9 +75,9 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
     
     # --- inject missing virtual lines (for AWETrim schema compatibility) ---
     bridle_connections_data += [
-        ["steering_tape", 0, 0],
-        ["depower_tape", 0, 0],
-        ["steering_tape", 0, 0],
+        ["steering_tape", [0, 0, 0], [0, 0, 0.001]],
+        ["depower_tape", [0, 0, 0], [0, 0, 0.001]],
+        ["steering_tape", [0, 0, 0], [0, 0, 0.001]],
     ]
 
     return {"headers": ["name", "ci", "cj"], "data": bridle_connections_data}
