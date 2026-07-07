@@ -73,11 +73,44 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
                             ]
                         )
     
-    # --- inject missing virtual lines (for AWETrim schema compatibility) ---
-    bridle_connections_data += [
-        ["steering_tape", [0, 0, 0], [0, 0, 0.001]],
-        ["depower_tape", [0, 0, 0], [0, 0, 0.001]],
-        ["steering_tape", [0, 0, 0], [0, 0, 0.001]],
+    # --- inject virtual control tapes automatically ---
+    # Find lowest bridle nodes (bar/control attachment points)
+    node_coordinates = {
+        node[0]: (node[1], node[2], node[3])
+        for node in bridle_nodes_data["data"]
+    }
+    
+    min_z = min(z for x, y, z in node_coordinates.values()) # Minimum Z value
+
+    # Nodes close to the lowest point
+    z_tolerance = 0.05 # tolerance avoids floating point issues
+
+    lowest_nodes = [
+        node_id
+        for node_id, (x, y, z) in node_coordinates.items()
+        if abs(z - min_z) < z_tolerance
     ]
+
+    # If several nodes exist, select the two most symmetrical ones
+    if len(lowest_nodes) >= 2:
+        lowest_nodes = sorted(
+            lowest_nodes,
+            key=lambda n: abs(node_coordinates[n][1])
+        )[:2]
+
+        # sort left/right using Y coordinate
+        lowest_nodes = sorted(
+            lowest_nodes,
+            key=lambda n: node_coordinates[n][1]
+        )
+
+        left_node = lowest_nodes[0] + len_wing_sections
+        right_node = lowest_nodes[-1] + len_wing_sections
+
+        bridle_connections_data += [
+            ["steering_tape", left_node, 0],
+            ["depower_tape", left_node, 0],
+            ["steering_tape", right_node, 0],
+        ]
 
     return {"headers": ["name", "ci", "cj"], "data": bridle_connections_data}
