@@ -42,8 +42,8 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     yaml_data["   "] = None
     yaml_data["## Material properties"] = None
     yaml_data["dyneema"] = {
-        "density": 724,  # [kg/m^3]
-        "youngs_modulus": 550000000,  # [Pa]
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
         "damping_per_stiffness": 0.0,  # [/s]
     }
 
