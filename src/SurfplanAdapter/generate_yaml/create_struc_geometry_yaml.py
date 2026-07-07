@@ -30,7 +30,7 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     yaml_data["## General ###################"] = None
     yaml_data["##############################"] = None
     yaml_data["   "] = None
-    yaml_data["bridle_point_node"] = [0, 0, 800]  # [x,y,z] --> location of kcu
+    yaml_data["bridle_point_node"] = [0, 0, 0]  # [x,y,z] --> location of kcu
 
     # Mass section
     yaml_data["   "] = None
