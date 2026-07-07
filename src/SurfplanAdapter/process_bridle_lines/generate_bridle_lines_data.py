@@ -78,14 +78,14 @@ def main(bridle_lines):
                     float(line_diameter_m),  # diameter in meters
                     material if material else "dyneema",  # material
                     'noncompressive', #linktype
-                    1717,  # density
+                    970,  # density
                 ]
             )
     
     # --- inject missing virtual lines (for AWETrim schema compatibility) ---
     bridle_lines_data += [
-        ["steering_tape", 0.001, 0.002, "dyneema", "noncompressive", 1717],
-        ["depower_tape", 0.001, 0.002, "dyneema", "noncompressive", 1717],
+        ["steering_tape", 0.001, 0.002, "dyneema", "noncompressive", 970],
+        ["depower_tape", 0.001, 0.002, "dyneema", "noncompressive", 970],
     ]
 
     return {
