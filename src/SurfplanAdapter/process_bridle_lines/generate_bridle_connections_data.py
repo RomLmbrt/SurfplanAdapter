@@ -1,4 +1,4 @@
-def main(bridle_lines, bridle_nodes_data, len_wing_sections):
+def main(bridle_lines, bridle_nodes_data, len_wing_sections, bridle_to_wing=None,):
     """
     Generate bridle connections data for YAML output.
     If symmetrical nodes exist (positive y-coordinates), create connections for both sides.
@@ -13,6 +13,9 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
         dict: Bridle connections data formatted for YAML
     """
     bridle_connections_data = []
+
+    if bridle_to_wing is None:
+        bridle_to_wing = {}
 
     # Create mapping from points to node IDs
     point_to_node_id = {}
@@ -41,15 +44,27 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
             p1_tuple = (float(p1[0]), float(p1[1]), float(p1[2]))
             p2_tuple = (float(p2[0]), float(p2[1]), float(p2[2]))
 
-            ci = point_to_node_id.get(p1_tuple, 0)
-            cj = point_to_node_id.get(p2_tuple, 0)
+            ci_local = point_to_node_id.get(p1_tuple, 0)
+            cj_local = point_to_node_id.get(p2_tuple, 0)
 
-            if ci > 0 and cj > 0:
+            
+
+            if ci_local > 0 and cj_local > 0:
+                if ci_local in bridle_to_wing:
+                    ci = bridle_to_wing[ci_local]
+                else:
+                    ci = ci_local + len_wing_sections
+
+                if cj_local in bridle_to_wing:
+                    cj = bridle_to_wing[cj_local]
+                else:
+                    cj = cj_local + len_wing_sections
+
                 bridle_connections_data.append(
                     [
                         name,  # Use actual line name
-                        ci + len_wing_sections,  # ci (start node)
-                        cj + len_wing_sections,  # cj (end node)
+                        ci,
+                        cj,
                     ]
                 )
 
