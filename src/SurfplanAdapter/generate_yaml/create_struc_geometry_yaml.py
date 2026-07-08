@@ -507,7 +507,7 @@ def main(
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
 
-struc_geometry_dict["bridle_point_node"] = bridle_point_node
+    struc_geometry_dict["bridle_point_node"] = bridle_point_node
 
     ### now we need to transform all this to the correct yaml format
     yaml_data = transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict)
