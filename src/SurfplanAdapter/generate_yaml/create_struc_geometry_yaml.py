@@ -495,15 +495,19 @@ def main(
     }
 
     # Find the lowest point in the bridle particles - bridle_point_node
-    coords = np.asarray(
-        [[p[1], p[2], p[3]] for p in bridle_particles],
-        dtype=float,
-    )
-    idx_lowest = np.argmin(coords[:, 2])
-    x_lowest = float(coords[idx_lowest, 0])
-    z_lowest = float(coords[idx_lowest, 2])
-    bridle_point_node = [x_lowest, 0.0, z_lowest]
-    struc_geometry_dict["bridle_point_node"] = bridle_point_node
+    if bridle_particles["data"]:
+        coords = np.asarray(
+            [[p[1], p[2], p[3]] for p in bridle_particles["data"]],
+            dtype=float,
+        )
+        idx_lowest = np.argmin(coords[:, 2])
+        x_lowest = float(coords[idx_lowest, 0])
+        z_lowest = float(coords[idx_lowest, 2])
+        bridle_point_node = [x_lowest, 0.0, z_lowest]
+    else:
+        bridle_point_node = [0.0, 0.0, 0.0]
+
+struc_geometry_dict["bridle_point_node"] = bridle_point_node
 
     ### now we need to transform all this to the correct yaml format
     yaml_data = transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict)
