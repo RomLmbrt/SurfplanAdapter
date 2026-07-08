@@ -158,57 +158,12 @@ def main(
     # save wing only to aero_geometrygenerate_bridle_connections_data
     utils.save_to_yaml(yaml_data, f"{yaml_file_path.parent}/{wing_yaml}")
 
-    # Create wing particles for nodes merging
-    wing_particles = []
-    wing_id = 1
-
-    for section in wing_sections["data"]:
-        _, le_x, le_y, le_z, te_x, te_y, te_z, _, _, _ = section
-
-        wing_particles.append((wing_id, (le_x, le_y, le_z)))
-        wing_id += 1
-
-        wing_particles.append((wing_id, (te_x, te_y, te_z)))
-        wing_id += 1
-
     # Add bridle data if available
     if len(bridle_lines) > 0:
         yaml_data[" "] = None  # Empty line before bridle_nodes
         bridle_nodes = generate_bridle_nodes_data.main(bridle_lines)
-
-        bridle_to_wing = {}
-        merged_bridle_data = []
-
-        for node in bridle_nodes["data"]:
-            node_id, x, y, z = node[:4]
-            p = (x, y, z)
-
-            nearest_wing_id = None
-            nearest_dist2 = float("inf")
-
-            for wing_id, wp in wing_particles:
-                dx = p[0] - wp[0]
-                dy = p[1] - wp[1]
-                dz = p[2] - wp[2]
-                d2 = dx * dx + dy * dy + dz * dz
-
-                if d2 < nearest_dist2:
-                    nearest_dist2 = d2
-                    nearest_wing_id = wing_id
-
-            if nearest_dist2 < 0.5**2:
-                bridle_to_wing[node_id] = nearest_wing_id
-                print(f"-------> Node merged")
-            else:
-                merged_bridle_data.append(node)
-
-        bridle_nodes["data"] = merged_bridle_data
-
         bridle_connections = generate_bridle_connections_data.main(
-            bridle_lines,
-            bridle_nodes,
-            0,
-            bridle_to_wing=bridle_to_wing,
+            bridle_lines, bridle_nodes, 0
         )
         bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
 

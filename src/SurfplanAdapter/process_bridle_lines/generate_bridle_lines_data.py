@@ -84,8 +84,8 @@ def main(bridle_lines):
     
     # --- inject missing virtual lines (for AWETrim schema compatibility) ---
     bridle_lines_data += [
-        ["steering_tape", 0.001, 1., "dyneema", "noncompressive", 970],
-        ["depower_tape", 0.001, 1., "dyneema", "noncompressive", 970],
+        ["steering_tape", 0.001, 1.0, "dyneema", "noncompressive", 970],
+        ["depower_tape", 0.001, 1.0, "dyneema", "noncompressive", 970],
     ]
 
     return {
