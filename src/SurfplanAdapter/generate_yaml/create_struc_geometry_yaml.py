@@ -167,6 +167,110 @@ def _build_tube_config_from_ribs(ribs_data):
         "leading_edge_tubes": leading_edge_tubes,
     }
 
+def merge_bridle_to_wing(
+    wing_particles,
+    bridle_particles,
+    bridle_connections,
+    distance_threshold=0.5,
+):
+    """
+    Merge bridle attachment nodes into nearest wing particles.
+
+    A bridle node is merged if:
+    - it is a leaf node (degree == 1)
+    - it is close enough to a wing particle
+
+    The bridle node is removed and all connections are redirected.
+    """
+
+    wing_coords = {
+        p[0]: np.array([p[1], p[2], p[3]])
+        for p in wing_particles["data"]
+    }
+
+    bridle_coords = {
+        p[0]: np.array([p[1], p[2], p[3]])
+        for p in bridle_particles["data"]
+    }
+
+    # Count bridle node occurrences
+    degree = Counter()
+
+    for conn in bridle_connections["data"]:
+        _, ci, cj, *rest = conn
+        degree[ci] += 1
+        degree[cj] += 1
+
+        # pulley third node
+        if rest and rest[0] != 0:
+            degree[rest[0]] += 1
+
+
+    # Candidate leaves
+    leaf_nodes = [
+        node_id
+        for node_id, deg in degree.items()
+        if deg == 1
+    ]
+
+
+    replacement = {}
+
+    for node_id in leaf_nodes:
+
+        if node_id not in bridle_coords:
+            continue
+
+        p = bridle_coords[node_id]
+
+        # nearest wing node
+        nearest_id, dist = min(
+            (
+                (wid, np.linalg.norm(p - wpos))
+                for wid, wpos in wing_coords.items()
+            ),
+            key=lambda x: x[1],
+        )
+
+        if dist < distance_threshold:
+            replacement[node_id] = nearest_id
+
+            print(
+                f"[bridle merge] bridle node {node_id} "
+                f"-> wing node {nearest_id} "
+                f"(distance={dist:.3f}m)"
+            )
+
+
+    # Replace connections
+    for conn in bridle_connections["data"]:
+
+        # ci
+        if conn[1] in replacement:
+            conn[1] = replacement[conn[1]]
+
+        # cj
+        if conn[2] in replacement:
+            conn[2] = replacement[conn[2]]
+
+        # ck if exists
+        if len(conn) > 3 and conn[3] in replacement:
+            conn[3] = replacement[conn[3]]
+
+
+    # Remove merged bridle particles
+    bridle_particles["data"] = [
+        p
+        for p in bridle_particles["data"]
+        if p[0] not in replacement
+    ]
+
+
+    return (
+        wing_particles,
+        bridle_particles,
+        bridle_connections,
+    )
 
 def main(
     ribs_data,
@@ -482,6 +586,18 @@ def main(
     bridle_connections = generate_bridle_connections_data.main(
         bridle_lines, bridle_nodes, len(wing_particles_data)
     )
+
+    (
+        wing_particles,
+        bridle_particles,
+        bridle_connections,
+    ) = merge_bridle_to_wing(
+        wing_particles,
+        bridle_particles,
+        bridle_connections,
+        distance_threshold=0.5,
+    )
+
     bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
 
     # Compose the final yaml_data dictionary
