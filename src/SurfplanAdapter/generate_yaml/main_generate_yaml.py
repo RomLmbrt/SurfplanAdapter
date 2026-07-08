@@ -163,7 +163,7 @@ def main(
     wing_id = 1
 
     for section in wing_sections["data"]:
-        _, le_x, le_y, le_z, te_x, te_y, te_z = section
+        _, le_x, le_y, le_z, te_x, te_y, te_z, _, _, _ = section
 
         wing_particles.append((wing_id, (le_x, le_y, le_z)))
         wing_id += 1
