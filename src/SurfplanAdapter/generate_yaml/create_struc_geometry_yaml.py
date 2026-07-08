@@ -30,7 +30,7 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     yaml_data["## General ###################"] = None
     yaml_data["##############################"] = None
     yaml_data["   "] = None
-    yaml_data["bridle_point_node"] = [struc_geometry_dict["bridle_point_node"]] # [x,y,z] --> location of kcu
+    yaml_data["bridle_point_node"] = struc_geometry_dict["bridle_point_node"] # [x,y,z] --> location of kcu
 
     # Mass section
     yaml_data["   "] = None
@@ -503,7 +503,7 @@ def main(
         idx_lowest = np.argmin(coords[:, 2])
         x_lowest = float(coords[idx_lowest, 0])
         z_lowest = float(coords[idx_lowest, 2])
-        bridle_point_node = [x_lowest, 0.0, z_lowest] # centered
+        bridle_point_node = [x_lowest, 0.0, z_lowest] # Centered
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
 
