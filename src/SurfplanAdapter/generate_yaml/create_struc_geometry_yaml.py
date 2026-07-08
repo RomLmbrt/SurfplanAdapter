@@ -171,7 +171,6 @@ def merge_bridle_to_wing(
     wing_particles,
     bridle_particles,
     bridle_connections,
-    distance_threshold=0.5,
 ):
     """
     Merge bridle attachment nodes into nearest wing particles.
@@ -232,14 +231,13 @@ def merge_bridle_to_wing(
             key=lambda x: x[1],
         )
 
-        if dist < distance_threshold:
-            replacement[node_id] = nearest_id
+        replacement[node_id] = nearest_id
 
-            print(
-                f"[bridle merge] bridle node {node_id} "
-                f"-> wing node {nearest_id} "
-                f"(distance={dist:.3f}m)"
-            )
+        print(
+            f"[bridle merge] bridle node {node_id} "
+            f"-> wing node {nearest_id} "
+            f"(distance={dist:.3f}m)"
+        )
 
 
     # Replace connections
@@ -595,7 +593,6 @@ def main(
         wing_particles,
         bridle_particles,
         bridle_connections,
-        distance_threshold=0.5,
     )
 
     bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
