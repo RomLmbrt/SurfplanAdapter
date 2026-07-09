@@ -310,6 +310,75 @@ def merge_bridle_to_wing(
         bridle_connections,
     )
 
+
+def connect_bridle_to_point_node(
+        bridle_particles,
+        bridle_connections,
+    ):
+
+    particles = bridle_particles["data"]
+    connections = bridle_connections["data"]
+
+    # Position du point node (déjà utilisé par les connexions existantes)
+    point_node_id = 0
+
+    # récupérer les particules déjà connectées au steering/depower tape
+    connected_to_point = set()
+
+    for c in connections:
+        name, ci, cj = c
+        if cj == point_node_id and name in ["steering_tape", "depower_tape"]:
+            connected_to_point.add(ci)
+
+    # Construire un dictionnaire id -> position
+    particle_pos = {
+        p[0]: np.array(p[1:4])
+        for p in particles
+    }
+
+    # Trouver toutes les particules qui sont des pieds d'arbre :
+    # une particule qui apparaît comme ci mais jamais comme cj
+    all_ci = set()
+    all_cj = set()
+
+    for c in connections:
+        _, ci, cj = c
+        all_ci.add(ci)
+        all_cj.add(cj)
+
+    bridle_ends = all_ci - all_cj
+
+    # enlever celles déjà reliées au point node
+    bridle_ends -= connected_to_point
+
+    # position du bridle point
+    point = particle_pos[point_node_id] if point_node_id in particle_pos else None
+
+    # Connexions à ajouter
+    new_connections = []
+
+    for pid in bridle_ends:
+
+        # Si la particule n'existe pas, on ignore
+        if pid not in particle_pos:
+            continue
+
+        # Ici le point node est fixe en [0]
+        # on ajoute directement steering_tape
+        new_connections.append(
+            ["steering_tape", pid, point_node_id]
+        )
+
+    connections.extend(new_connections)
+
+    bridle_connections["data"] = connections
+
+    return (
+        bridle_particles,
+        bridle_connections,
+    )
+
+
 def main(
     ribs_data,
     bridle_lines,
@@ -631,6 +700,14 @@ def main(
         bridle_connections,
     ) = merge_bridle_to_wing(
         wing_particles,
+        bridle_particles,
+        bridle_connections,
+    )
+
+    (
+        bridle_particles,
+        bridle_connections,
+    ) = connect_bridle_to_point_node(
         bridle_particles,
         bridle_connections,
     )
