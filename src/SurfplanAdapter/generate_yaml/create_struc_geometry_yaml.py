@@ -203,6 +203,7 @@ def merge_bridle_to_wing(
         for conn in bridle_connections["data"]
         if conn[1] in wing_ids
     ]
+    print(f"--------------> top_connections: {top_connections}")
 
     # Particules de bridage connectées directement à l'aile
     top_bridle_indices = set()
@@ -228,6 +229,7 @@ def merge_bridle_to_wing(
         )
 
         replacement[b_idx] = closest_wing
+    print(f"--------------> replacement: {replacement}")
 
     # -----------------------------
     # Remplacer les indices dans les connexions
@@ -243,6 +245,7 @@ def merge_bridle_to_wing(
             )
 
         new_connections.append(new_conn)
+    print(f"--------------> new_connections: {new_connections}")
 
     bridle_connections["data"] = new_connections
 
@@ -254,7 +257,7 @@ def merge_bridle_to_wing(
         for p in bridle_particles["data"]
         if p[0] not in top_bridle_indices
     ]
-    
+
     return (
         wing_particles,
         bridle_particles,
