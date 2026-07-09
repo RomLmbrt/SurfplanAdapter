@@ -137,6 +137,29 @@ def transform_struc_geometry_all_in_yaml_format(struc_geometry_dict):
 
     return yaml_data
 
+def get_wing_side_bridle_connections(bridle_connections):
+
+    children = set()
+    parents = set()
+
+    for conn in bridle_connections["data"]:
+        child = conn[1]
+        parent = conn[2]
+
+        children.add(child)
+        parents.add(parent)
+
+    # feuilles côté aile :
+    # enfants qui ne sont jamais parents
+    wing_side_nodes = children - parents
+
+    top_connections = [
+        conn
+        for conn in bridle_connections["data"]
+        if conn[1] in wing_side_nodes
+    ]
+
+    return top_connections
 
 def _build_tube_config_from_ribs(ribs_data):
     """Build tube data config dict from ribs_data for mass computation."""
@@ -185,7 +208,6 @@ def merge_bridle_to_wing(
         for p in bridle_particles["data"]
     }
 
-    wing_ids = set(wing_pos.keys())
     bridle_ids = set(bridle_pos.keys())
 
     # -----------------------------
@@ -198,11 +220,7 @@ def merge_bridle_to_wing(
     # Les top connections sont celles
     # dont le child est une particule aile
     #
-    top_connections = [
-        conn
-        for conn in bridle_connections["data"]
-        if conn[1] in wing_ids
-    ]
+    top_connections = get_wing_side_bridle_connections(bridle_connections)
     print(f"--------------> top_connections: {top_connections}")
 
     # Particules de bridage connectées directement à l'aile
