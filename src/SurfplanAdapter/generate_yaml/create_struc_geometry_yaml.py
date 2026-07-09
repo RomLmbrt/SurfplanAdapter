@@ -172,98 +172,89 @@ def merge_bridle_to_wing(
     bridle_particles,
     bridle_connections,
 ):
-    """
-    Merge bridle attachment nodes into nearest wing particles.
-
-    A bridle node is merged if:
-    - it is a leaf node (degree == 1)
-    - it is close enough to a wing particle
-
-    The bridle node is removed and all connections are redirected.
-    """
-
-    wing_coords = {
-        p[0]: np.array([p[1], p[2], p[3]])
+    # -----------------------------
+    # Dictionnaires positions
+    # -----------------------------
+    wing_pos = {
+        p[0]: np.asarray(p[1:], dtype=float)
         for p in wing_particles["data"]
     }
 
-    bridle_coords = {
-        p[0]: np.array([p[1], p[2], p[3]])
+    bridle_pos = {
+        p[0]: np.asarray(p[1:], dtype=float)
         for p in bridle_particles["data"]
     }
 
-    # Count bridle node occurrences
-    degree = Counter()
+    wing_ids = set(wing_pos.keys())
+    bridle_ids = set(bridle_pos.keys())
 
-    for conn in bridle_connections["data"]:
-        _, ci, cj, *rest = conn
-        degree[ci] += 1
-        degree[cj] += 1
-
-        # pulley third node
-        if rest and rest[0] != 0:
-            degree[rest[0]] += 1
-
-
-    # Candidate leaves
-    leaf_nodes = [
-        node_id
-        for node_id, deg in degree.items()
-        if deg == 1
+    # -----------------------------
+    # Trouver les connexions hautes
+    # côté aile
+    # -----------------------------
+    # convention :
+    # [name, child, parent1, parent2...]
+    #
+    # Les top connections sont celles
+    # dont le child est une particule aile
+    #
+    top_connections = [
+        conn
+        for conn in bridle_connections["data"]
+        if conn[1] in wing_ids
     ]
 
+    # Particules de bridage connectées directement à l'aile
+    top_bridle_indices = set()
 
+    for conn in top_connections:
+        for parent in conn[2:]:
+            if parent in bridle_ids:
+                top_bridle_indices.add(parent)
+
+    # -----------------------------
+    # Trouver la wing particle la plus proche
+    # pour chaque extrémité de bridage
+    # -----------------------------
     replacement = {}
 
-    for node_id in leaf_nodes:
+    for b_idx in top_bridle_indices:
+        b_pos = bridle_pos[b_idx]
 
-        if node_id not in bridle_coords:
-            continue
-
-        p = bridle_coords[node_id]
-
-        # nearest wing node
-        nearest_id, dist = min(
-            (
-                (wid, np.linalg.norm(p - wpos))
-                for wid, wpos in wing_coords.items()
-            ),
-            key=lambda x: x[1],
+        closest_wing = min(
+            wing_pos,
+            key=lambda w_idx:
+                np.linalg.norm(wing_pos[w_idx] - b_pos)
         )
 
-        replacement[node_id] = nearest_id
+        replacement[b_idx] = closest_wing
 
-        print(
-            f"[bridle merge] bridle node {node_id} "
-            f"-> wing node {nearest_id} "
-            f"(distance={dist:.3f}m)"
-        )
+    # -----------------------------
+    # Remplacer les indices dans les connexions
+    # -----------------------------
+    new_connections = []
 
-
-    # Replace connections
     for conn in bridle_connections["data"]:
+        new_conn = [conn[0]]
 
-        # ci
-        if conn[1] in replacement:
-            conn[1] = replacement[conn[1]]
+        for idx in conn[1:]:
+            new_conn.append(
+                replacement.get(idx, idx)
+            )
 
-        # cj
-        if conn[2] in replacement:
-            conn[2] = replacement[conn[2]]
+        new_connections.append(new_conn)
 
-        # ck if exists
-        if len(conn) > 3 and conn[3] in replacement:
-            conn[3] = replacement[conn[3]]
+    bridle_connections["data"] = new_connections
 
-
-    # Remove merged bridle particles
+    # -----------------------------
+    # Supprimer les particules bridage fusionnées
+    # -----------------------------
     bridle_particles["data"] = [
         p
         for p in bridle_particles["data"]
-        if p[0] not in replacement
+        if p[0] not in top_bridle_indices
     ]
-
-
+    
     return (
         wing_particles,
         bridle_particles,
