@@ -73,70 +73,28 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
                             ]
                         )
     
-    # --- inject virtual control tapes automatically ---
-    # Find lowest bridle nodes (bar/control attachment points)
+    # --- inject control tapes automatically ---
+    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data["data"]}
 
-    node_coordinates = {
-        node[0]: (node[1], node[2], node[3])
-        for node in bridle_nodes_data["data"]
-    }
-
-    # Select the 4 lowest nodes in Z
-    lowest_nodes = sorted(
-        node_coordinates.keys(),
-        key=lambda n: node_coordinates[n][2]   # z coordinate
+    lowest_nodes = sorted( # Sort z-coordinate: get the 4 lowest bridle nodes (2 front, 2 rear)
+        node_coordinates,
+        key=lambda n: node_coordinates[n][2]
     )[:4]
 
-    print(f"--------------> lowest_nodes by z: {lowest_nodes}")
+    lowest_nodes = sorted( # Sort x-coordinate: get the 2 front and 2 rear nodes
+        lowest_nodes,
+        key=lambda n: node_coordinates[n][0]
+    )
 
-    if len(lowest_nodes) == 4:
+    front_nodes, rear_nodes = lowest_nodes[:2], lowest_nodes[2:]
 
-        # Sort by X coordinate:
-        # smaller X = front bridles
-        # larger X = rear bridles (brmain)
-        lowest_nodes_sorted_x = sorted(
-            lowest_nodes,
-            key=lambda n: node_coordinates[n][0]
-        )
-
-        front_nodes = lowest_nodes_sorted_x[:2]
-        rear_nodes = lowest_nodes_sorted_x[-2:]
-
-        # Sort left/right using Y coordinate
-        front_nodes = sorted(
-            front_nodes,
-            key=lambda n: node_coordinates[n][1]
-        )
-
-        rear_nodes = sorted(
-            rear_nodes,
-            key=lambda n: node_coordinates[n][1]
-        )
-
-        print(f"--------------> front_nodes (depower): {front_nodes}")
-        print(f"--------------> rear_nodes (steering): {rear_nodes}")
-
-        # Convert bridle node IDs to global particle IDs
-        front_nodes = [
-            n + len_wing_sections
-            for n in front_nodes
+    for name, nodes in [
+        ("depower_tape", front_nodes),
+        ("steering_tape", rear_nodes)
+    ]:
+        bridle_connections_data += [
+            [name, n, 0]
+            for n in nodes
         ]
-
-        rear_nodes = [
-            n + len_wing_sections
-            for n in rear_nodes
-        ]
-
-        # Front bridles -> depower tape
-        for node in front_nodes:
-            bridle_connections_data.append(
-                ["depower_tape", node, 0]
-            )
-
-        # Rear bridles -> steering tape
-        for node in rear_nodes:
-            bridle_connections_data.append(
-                ["steering_tape", node, 0]
-            )
 
     return {"headers": ["name", "ci", "cj"], "data": bridle_connections_data}
