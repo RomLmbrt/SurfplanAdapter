@@ -138,28 +138,28 @@ def transform_struc_geometry_all_in_yaml_format(struc_geometry_dict):
     return yaml_data
 
 def get_wing_side_bridle_connections(bridle_connections):
+    data = bridle_connections["data"]
 
-    children = set()
-    parents = set()
+    # Tous les parents
+    parents = {
+        conn[2]
+        for conn in data
+    }
 
-    for conn in bridle_connections["data"]:
-        child = conn[1]
-        parent = conn[2]
-
-        children.add(child)
-        parents.add(parent)
-
-    # feuilles côté aile :
-    # enfants qui ne sont jamais parents
-    wing_side_nodes = children - parents
-
+    # Connexions dont le child est une feuille
     top_connections = [
         conn
-        for conn in bridle_connections["data"]
-        if conn[1] in wing_side_nodes
+        for conn in data
+        if conn[1] not in parents
     ]
 
-    return top_connections
+    # Supprimer les doublons (les lignes inversées)
+    unique = {}
+    for conn in top_connections:
+        key = tuple(sorted([conn[1], conn[2]]))
+        unique[key] = conn
+
+    return list(unique.values())
 
 def _build_tube_config_from_ribs(ribs_data):
     """Build tube data config dict from ribs_data for mass computation."""
