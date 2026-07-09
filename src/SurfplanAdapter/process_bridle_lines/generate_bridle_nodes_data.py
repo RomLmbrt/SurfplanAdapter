@@ -24,8 +24,8 @@ def main(bridle_lines):
     unique_points = sorted(list(unique_points))
 
     # Check if all y-coordinates are negative
-    all_y_negative = all(point[1] < 0 for point in unique_points)
-
+    all_same_sign = all(point[1] < 0 for point in unique_points) or \
+                    all(point[1] > 0 for point in unique_points)
     # Add original nodes
     for point in unique_points:
         bridle_nodes_data.append(
@@ -40,9 +40,9 @@ def main(bridle_lines):
         node_id += 1
 
     # If all y-coordinates are negative, add symmetrical nodes with positive y
-    if all_y_negative:
+    if all_same_sign:
         print(
-            f"All bridle nodes have negative y-coordinates. Adding {len(unique_points)} symmetrical nodes with positive y."
+            f"All bridle nodes have same y-coordinates sign. Adding {len(unique_points)} symmetrical nodes."
         )
         for point in unique_points:
             bridle_nodes_data.append(
