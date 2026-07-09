@@ -45,6 +45,21 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
         "youngs_modulus": 10000000000,  # [Pa]
         "damping_per_stiffness": 0.0,  # [/s]
     }
+    yaml_data["DC200"] = {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    }
+    yaml_data["DC500"] = {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    }
+    yaml_data["D-Pro 3"] = {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    }
 
     # Wing section
     yaml_data["   "] = None
