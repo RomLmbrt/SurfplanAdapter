@@ -93,7 +93,7 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
         ("steering_tape", rear_nodes)
     ]:
         bridle_connections_data += [
-            [name, n, 0]
+            [name, n + len_wing_sections, 0]
             for n in nodes
         ]
 
