@@ -168,147 +168,73 @@ def _build_tube_config_from_ribs(ribs_data):
     }
 
 
-def merge_bridle_to_wing(
+def link_bridle_to_wing(
     wing_particles,
     bridle_particles,
     bridle_connections,
 ):
-    wing_pos = {
-        p[0]: np.asarray(p[1:], dtype=float)
-        for p in wing_particles["data"]
+    wing_pos = {p[0]: np.asarray(p[1:], float) for p in wing_particles["data"]}
+    bridle_pos = {p[0]: np.asarray(p[1:], float) for p in bridle_particles["data"]}
+
+    # Find bridle connections attached to the wing (top connections)
+    parents = {c[2] for c in bridle_connections["data"]}
+    top = [c for c in bridle_connections["data"] if c[1] not in parents]
+
+    top_connections = list({ # Remove reversed duplicates
+        tuple(sorted((c[1], c[2]))): c for c in top
+    }.values())
+
+    top_nodes = {
+        c[1] for c in top_connections if c[1] in set(bridle_pos)
     }
 
-    bridle_pos = {
-        p[0]: np.asarray(p[1:], dtype=float)
-        for p in bridle_particles["data"]
-    }
-
-    bridle_ids = set(bridle_pos.keys())
-
-    # ---------------------------------
-    # Trouver les connexions côté aile
-    # ---------------------------------
-    parents = {
-        conn[2]
-        for conn in bridle_connections["data"]
-    }
-
-    candidates = [
-        conn
-        for conn in bridle_connections["data"]
-        if conn[1] not in parents
-    ]
-
-    # Supprimer doublons inversés
-    unique = {}
-    for conn in candidates:
-        key = tuple(sorted((conn[1], conn[2])))
-        unique[key] = conn
-
-    top_connections = list(unique.values())
-    print(f"--------------> top_connections: {top_connections}")
-
-    # ---------------------------------
-    # Les particules à fusionner sont les ci
-    # ---------------------------------
-    top_bridle_indices = {
-        conn[1]
-        for conn in top_connections
-        if conn[1] in bridle_ids
-    }
-
-    # ---------------------------------
-    # Trouver la wing particle associée
-    # ---------------------------------
-    replacement = {}
-
-    for b_idx in top_bridle_indices:
-        pos = bridle_pos[b_idx]
-
-        closest = min(
+    # Match each bridle node with the closest wing node
+    replacement = {
+        b: min(
             wing_pos,
-            key=lambda w_idx:
-                np.linalg.norm(wing_pos[w_idx] - pos)
+            key=lambda w: np.linalg.norm(wing_pos[w] - bridle_pos[b])
         )
+        for b in top_nodes
+    }
 
-        replacement[b_idx] = closest
-    print(f"--------------> replacement: {replacement}")
-
-    # ---------------------------------
-    # Remplacer uniquement ces indices
-    # ---------------------------------
-    new_connections = []
-
-    for conn in bridle_connections["data"]:
-        new_conn = [
-            conn[0],
-            replacement.get(conn[1], conn[1]),
-            replacement.get(conn[2], conn[2]),
+    # Replace merged bridle indices in connections
+    bridle_connections["data"] = [
+        [
+            c[0],
+            replacement.get(c[1], c[1]),
+            replacement.get(c[2], c[2]),
         ]
-
-        new_connections.append(new_conn)
-
-    print(f"--------------> new_connections: {new_connections}")
-    bridle_connections["data"] = new_connections
-
-    # ---------------------------------
-    # Supprimer les anciennes particules
-    # ---------------------------------
-    bridle_particles["data"] = [
-        p
-        for p in bridle_particles["data"]
-        if p[0] not in top_bridle_indices
+        for c in bridle_connections["data"]
     ]
 
-        # ---------------------------------
-    # Réindexation des bridle_particles
-    # ---------------------------------
-    first_bridle_id = len(wing_particles["data"]) + 1
+    # Remove merged particles
+    bridle_particles["data"] = [
+        p for p in bridle_particles["data"]
+        if p[0] not in top_nodes
+    ]
 
+    # Re-index remaining bridle particles after wing particles
+    first_id = len(wing_particles["data"]) + 1
     id_mapping = {}
 
-    new_bridle_data = []
-
-    for new_id, particle in enumerate(
-        bridle_particles["data"],
-        start=first_bridle_id,
-    ):
-        old_id = particle[0]
-
-        id_mapping[old_id] = new_id
-
-        new_bridle_data.append(
-            [
-                new_id,
-                particle[1],
-                particle[2],
-                particle[3],
-            ]
+    bridle_particles["data"] = [
+        [new_id, p[1], p[2], p[3]]
+        for new_id, p in enumerate(
+            bridle_particles["data"],
+            start=first_id
         )
+        for _ in [id_mapping.setdefault(p[0], new_id)]
+    ]
 
-    bridle_particles["data"] = new_bridle_data
-
-    # ---------------------------------
-    # Mise à jour des indices dans les connexions
-    # ---------------------------------
-    new_connections = []
-
-    for conn in bridle_connections["data"]:
-        new_conn = [
-            conn[0],
-            id_mapping.get(conn[1], conn[1]),
-            id_mapping.get(conn[2], conn[2]),
+    # Update connection indices after re-indexing
+    bridle_connections["data"] = [
+        [
+            c[0],
+            id_mapping.get(c[1], c[1]),
+            id_mapping.get(c[2], c[2]),
         ]
-
-        new_connections.append(new_conn)
-
-    bridle_connections["data"] = new_connections
-
-    return (
-        wing_particles,
-        bridle_particles,
-        bridle_connections,
-    )
+        for c in bridle_connections["data"]
+    ]
 
 
 def main(
@@ -626,15 +552,7 @@ def main(
         bridle_lines, bridle_nodes, len(wing_particles_data)
     )
 
-    (
-        wing_particles,
-        bridle_particles,
-        bridle_connections,
-    ) = merge_bridle_to_wing(
-        wing_particles,
-        bridle_particles,
-        bridle_connections,
-    )
+    link_bridle_to_wing(wing_particles, bridle_particles, bridle_connections)
 
     bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
 
