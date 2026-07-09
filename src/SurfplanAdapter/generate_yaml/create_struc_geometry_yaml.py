@@ -260,6 +260,50 @@ def merge_bridle_to_wing(
         if p[0] not in top_bridle_indices
     ]
 
+        # ---------------------------------
+    # Réindexation des bridle_particles
+    # ---------------------------------
+    first_bridle_id = len(wing_particles["data"]) + 1
+
+    id_mapping = {}
+
+    new_bridle_data = []
+
+    for new_id, particle in enumerate(
+        bridle_particles["data"],
+        start=first_bridle_id,
+    ):
+        old_id = particle[0]
+
+        id_mapping[old_id] = new_id
+
+        new_bridle_data.append(
+            [
+                new_id,
+                particle[1],
+                particle[2],
+                particle[3],
+            ]
+        )
+
+    bridle_particles["data"] = new_bridle_data
+
+    # ---------------------------------
+    # Mise à jour des indices dans les connexions
+    # ---------------------------------
+    new_connections = []
+
+    for conn in bridle_connections["data"]:
+        new_conn = [
+            conn[0],
+            id_mapping.get(conn[1], conn[1]),
+            id_mapping.get(conn[2], conn[2]),
+        ]
+
+        new_connections.append(new_conn)
+
+    bridle_connections["data"] = new_connections
+
     return (
         wing_particles,
         bridle_particles,
