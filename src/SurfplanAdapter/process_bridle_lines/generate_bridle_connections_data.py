@@ -75,42 +75,68 @@ def main(bridle_lines, bridle_nodes_data, len_wing_sections):
     
     # --- inject virtual control tapes automatically ---
     # Find lowest bridle nodes (bar/control attachment points)
+
     node_coordinates = {
         node[0]: (node[1], node[2], node[3])
         for node in bridle_nodes_data["data"]
     }
-    
-    min_z = min(z for x, y, z in node_coordinates.values()) # Minimum Z value
 
-    # Nodes close to the lowest point
-    z_tolerance = 0.05 # tolerance avoids floating point issues
+    # Select the 4 lowest nodes in Z
+    lowest_nodes = sorted(
+        node_coordinates.keys(),
+        key=lambda n: node_coordinates[n][2]   # z coordinate
+    )[:4]
 
-    lowest_nodes = [
-        node_id
-        for node_id, (x, y, z) in node_coordinates.items()
-        if abs(z - min_z) < z_tolerance
-    ]
+    print(f"--------------> lowest_nodes by z: {lowest_nodes}")
 
-    # If several nodes exist, select the two most symmetrical ones
-    if len(lowest_nodes) >= 2:
-        lowest_nodes = sorted(
+    if len(lowest_nodes) == 4:
+
+        # Sort by X coordinate:
+        # smaller X = front bridles
+        # larger X = rear bridles (brmain)
+        lowest_nodes_sorted_x = sorted(
             lowest_nodes,
-            key=lambda n: abs(node_coordinates[n][1])
-        )[:2]
+            key=lambda n: node_coordinates[n][0]
+        )
 
-        # sort left/right using Y coordinate
-        lowest_nodes = sorted(
-            lowest_nodes,
+        front_nodes = lowest_nodes_sorted_x[:2]
+        rear_nodes = lowest_nodes_sorted_x[-2:]
+
+        # Sort left/right using Y coordinate
+        front_nodes = sorted(
+            front_nodes,
             key=lambda n: node_coordinates[n][1]
         )
 
-        left_node = lowest_nodes[0] + len_wing_sections
-        right_node = lowest_nodes[-1] + len_wing_sections
+        rear_nodes = sorted(
+            rear_nodes,
+            key=lambda n: node_coordinates[n][1]
+        )
 
-        bridle_connections_data += [
-            ["steering_tape", left_node, 0],
-            ["depower_tape", left_node, 0],
-            ["steering_tape", right_node, 0],
+        print(f"--------------> front_nodes (depower): {front_nodes}")
+        print(f"--------------> rear_nodes (steering): {rear_nodes}")
+
+        # Convert bridle node IDs to global particle IDs
+        front_nodes = [
+            n + len_wing_sections
+            for n in front_nodes
         ]
+
+        rear_nodes = [
+            n + len_wing_sections
+            for n in rear_nodes
+        ]
+
+        # Front bridles -> depower tape
+        for node in front_nodes:
+            bridle_connections_data.append(
+                ["depower_tape", node, 0]
+            )
+
+        # Rear bridles -> steering tape
+        for node in rear_nodes:
+            bridle_connections_data.append(
+                ["steering_tape", node, 0]
+            )
 
     return {"headers": ["name", "ci", "cj"], "data": bridle_connections_data}
