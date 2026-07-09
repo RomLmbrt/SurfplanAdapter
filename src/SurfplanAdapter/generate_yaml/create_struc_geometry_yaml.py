@@ -137,29 +137,6 @@ def transform_struc_geometry_all_in_yaml_format(struc_geometry_dict):
 
     return yaml_data
 
-def get_wing_side_bridle_connections(bridle_connections):
-    data = bridle_connections["data"]
-
-    # Tous les parents
-    parents = {
-        conn[2]
-        for conn in data
-    }
-
-    # Connexions dont le child est une feuille
-    top_connections = [
-        conn
-        for conn in data
-        if conn[1] not in parents
-    ]
-
-    # Supprimer les doublons (les lignes inversées)
-    unique = {}
-    for conn in top_connections:
-        key = tuple(sorted([conn[1], conn[2]]))
-        unique[key] = conn
-
-    return list(unique.values())
 
 def _build_tube_config_from_ribs(ribs_data):
     """Build tube data config dict from ribs_data for mass computation."""
@@ -190,14 +167,12 @@ def _build_tube_config_from_ribs(ribs_data):
         "leading_edge_tubes": leading_edge_tubes,
     }
 
+
 def merge_bridle_to_wing(
     wing_particles,
     bridle_particles,
     bridle_connections,
 ):
-    # -----------------------------
-    # Dictionnaires positions
-    # -----------------------------
     wing_pos = {
         p[0]: np.asarray(p[1:], dtype=float)
         for p in wing_particles["data"]
@@ -210,66 +185,75 @@ def merge_bridle_to_wing(
 
     bridle_ids = set(bridle_pos.keys())
 
-    # -----------------------------
-    # Trouver les connexions hautes
-    # côté aile
-    # -----------------------------
-    # convention :
-    # [name, child, parent1, parent2...]
-    #
-    # Les top connections sont celles
-    # dont le child est une particule aile
-    #
-    top_connections = get_wing_side_bridle_connections(bridle_connections)
+    # ---------------------------------
+    # Trouver les connexions côté aile
+    # ---------------------------------
+    parents = {
+        conn[2]
+        for conn in bridle_connections["data"]
+    }
+
+    candidates = [
+        conn
+        for conn in bridle_connections["data"]
+        if conn[1] not in parents
+    ]
+
+    # Supprimer doublons inversés
+    unique = {}
+    for conn in candidates:
+        key = tuple(sorted((conn[1], conn[2])))
+        unique[key] = conn
+
+    top_connections = list(unique.values())
     print(f"--------------> top_connections: {top_connections}")
 
-    # Particules de bridage connectées directement à l'aile
-    top_bridle_indices = set()
+    # ---------------------------------
+    # Les particules à fusionner sont les ci
+    # ---------------------------------
+    top_bridle_indices = {
+        conn[1]
+        for conn in top_connections
+        if conn[1] in bridle_ids
+    }
 
-    for conn in top_connections:
-        for parent in conn[2:]:
-            if parent in bridle_ids:
-                top_bridle_indices.add(parent)
-
-    # -----------------------------
-    # Trouver la wing particle la plus proche
-    # pour chaque extrémité de bridage
-    # -----------------------------
+    # ---------------------------------
+    # Trouver la wing particle associée
+    # ---------------------------------
     replacement = {}
 
     for b_idx in top_bridle_indices:
-        b_pos = bridle_pos[b_idx]
+        pos = bridle_pos[b_idx]
 
-        closest_wing = min(
+        closest = min(
             wing_pos,
             key=lambda w_idx:
-                np.linalg.norm(wing_pos[w_idx] - b_pos)
+                np.linalg.norm(wing_pos[w_idx] - pos)
         )
 
-        replacement[b_idx] = closest_wing
+        replacement[b_idx] = closest
     print(f"--------------> replacement: {replacement}")
 
-    # -----------------------------
-    # Remplacer les indices dans les connexions
-    # -----------------------------
+    # ---------------------------------
+    # Remplacer uniquement ces indices
+    # ---------------------------------
     new_connections = []
 
     for conn in bridle_connections["data"]:
-        new_conn = [conn[0]]
-
-        for idx in conn[1:]:
-            new_conn.append(
-                replacement.get(idx, idx)
-            )
+        new_conn = [
+            conn[0],
+            replacement.get(conn[1], conn[1]),
+            replacement.get(conn[2], conn[2]),
+        ]
 
         new_connections.append(new_conn)
-    print(f"--------------> new_connections: {new_connections}")
 
+    print(f"--------------> new_connections: {new_connections}")
     bridle_connections["data"] = new_connections
 
-    # -----------------------------
-    # Supprimer les particules bridage fusionnées
-    # -----------------------------
+    # ---------------------------------
+    # Supprimer les anciennes particules
+    # ---------------------------------
     bridle_particles["data"] = [
         p
         for p in bridle_particles["data"]
