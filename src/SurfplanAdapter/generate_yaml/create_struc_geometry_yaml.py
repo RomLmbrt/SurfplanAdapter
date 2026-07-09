@@ -36,7 +36,6 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     yaml_data["   "] = None
     yaml_data["## Mass"] = None
     yaml_data["pulley_mass"] = float(0.1)  # [kg]
-    yaml_data["kcu_mass"] = float(8.4)  # [kg]
 
     # Material properties section
     yaml_data["   "] = None
