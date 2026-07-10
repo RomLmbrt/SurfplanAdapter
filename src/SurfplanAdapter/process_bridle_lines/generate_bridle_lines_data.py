@@ -128,7 +128,6 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
             bridle_point_node, node_coordinates, front_nodes
         )
         print("DEBUG depower_length:", depower_length)
-        print("DEBUG steering_length:", steering_length)
         steering_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, rear_nodes
         )
