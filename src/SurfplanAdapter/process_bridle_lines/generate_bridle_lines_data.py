@@ -59,6 +59,8 @@ def _front_rear_nodes(bridle_nodes_data):
     )
 
     front_nodes, rear_nodes = lowest_nodes[:2], lowest_nodes[2:]
+    print(f'--------------> front_nodes: {front_nodes}')
+    print(f'--------------> rear_nodes: {rear_nodes}')
     return node_coordinates, front_nodes, rear_nodes
 
 def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
@@ -72,6 +74,8 @@ def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
         np.linalg.norm(np.asarray(node_coordinates[n], dtype=float) - bridle_point_node)
         for n in node_ids
     ]
+
+    print(f'--------------> distances: {distances}')
     return np.mean(distances)
 
 def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
@@ -131,7 +135,6 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
 
     max_bridle_lines_diameter = max(line[3] for line in bridle_lines)
 
-    print(f'steering_length ici: {steering_length}')
     bridle_lines_data += [
         ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
         ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
