@@ -583,8 +583,8 @@ def main(
 
     bridle_lines_yaml = generate_bridle_lines_data.main(
         bridle_lines,
-        bridle_nodes,          # le même bridle_nodes_data que celui passé à generate_bridle_connections_data
-        bridle_point_node,  # ou la variable qui contient réellement [x, y, z] du KCU
+        bridle_nodes,
+        bridle_point_node, 
     )
 
     # Compose the final yaml_data dictionary
