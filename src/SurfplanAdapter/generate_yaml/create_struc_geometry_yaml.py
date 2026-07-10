@@ -581,7 +581,6 @@ def main(
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
 
-    print(f'------> from normal')
     bridle_lines_yaml = generate_bridle_lines_data.main(
         bridle_lines,
         bridle_nodes, 
