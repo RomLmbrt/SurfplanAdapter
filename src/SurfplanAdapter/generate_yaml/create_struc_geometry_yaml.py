@@ -568,19 +568,7 @@ def main(
 
     link_bridle_to_wing(wing_particles, bridle_particles, bridle_connections)
 
-    bridle_lines_yaml = generate_bridle_lines_data.main(bridle_lines)
-
-    # Compose the final yaml_data dictionary
-    struc_geometry_dict = {
-        "wing_particles": wing_particles,
-        "wing_connections": wing_connections,
-        "wing_elements": wing_elements,
-        "bridle_particles": bridle_particles,
-        "bridle_connections": bridle_connections,
-        "bridle_lines": bridle_lines_yaml,
-    }
-
-    # Find the lowest point in the bridle particles -> bridle_point_node
+    # Set bridle_point_node to the center of the front bridle attachment point
     if bridle_particles["data"]:
         coords = np.asarray(
             [[p[1], p[2], p[3]] for p in bridle_particles["data"]],
@@ -593,7 +581,22 @@ def main(
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
 
-    struc_geometry_dict["bridle_point_node"] = bridle_point_node
+    bridle_lines_yaml = generate_bridle_lines_data.main(
+        bridle_lines,
+        bridle_nodes,          # le même bridle_nodes_data que celui passé à generate_bridle_connections_data
+        bridle_point_node,  # ou la variable qui contient réellement [x, y, z] du KCU
+    )
+
+    # Compose the final yaml_data dictionary
+    struc_geometry_dict = {
+        "wing_particles": wing_particles,
+        "wing_connections": wing_connections,
+        "wing_elements": wing_elements,
+        "bridle_particles": bridle_particles,
+        "bridle_connections": bridle_connections,
+        "bridle_lines": bridle_lines_yaml,
+        "bridle_point_node": bridle_point_node,
+    }
 
     ### now we need to transform all this to the correct yaml format
     yaml_data = transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict)

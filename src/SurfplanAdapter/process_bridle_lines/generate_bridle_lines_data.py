@@ -41,8 +41,41 @@ def _extract_fields(bridle_line, index):
 
     return p1, p2, name, length, diameter, material
 
+def _front_rear_nodes(bridle_nodes_data):
+    """
+    Replicate the exact node-selection logic used in
+    generate_bridle_connections_data.main() to identify the control-tape
+    attachment nodes, so both modules always agree on which nodes are
+    "front" (depower) and "rear" (steering).
+    """
+    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data["data"]}
 
-def main(bridle_lines):
+    lowest_nodes = sorted(  # 4 lowest bridle nodes (2 front, 2 rear) by z
+        node_coordinates, key=lambda n: node_coordinates[n][2]
+    )[:4]
+
+    lowest_nodes = sorted(  # split front/rear by x
+        lowest_nodes, key=lambda n: node_coordinates[n][0]
+    )
+
+    front_nodes, rear_nodes = lowest_nodes[:2], lowest_nodes[2:]
+    return node_coordinates, front_nodes, rear_nodes
+
+def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
+    """Mean euclidean distance from bridle_point_node to the given nodes.
+
+    The two attachment nodes (left/right) are symmetric, so their distance
+    to the KCU point should already match closely; averaging just guards
+    against small asymmetries instead of arbitrarily picking one side.
+    """
+    point = np.asarray(bridle_point_node, dtype=float)
+    distances = [
+        np.linalg.norm(np.asarray(node_coordinates[n], dtype=float) - point)
+        for n in node_ids
+    ]
+    return float(np.mean(distances))
+
+def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     """
     Generate bridle lines data for YAML output.
 
@@ -82,10 +115,26 @@ def main(bridle_lines):
                 ]
             )
     
-    # --- inject missing virtual lines (for AWETrim schema compatibility) ---
+    # --- inject control tapes automatically ---
+    # steering_tape / depower_tape connect bridle_point_node (the KCU) to the
+    # front/rear-most bridle nodes (see generate_bridle_connections_data.main).
+    if bridle_nodes_data is not None and bridle_point_node is not None:
+        node_coordinates, front_nodes, rear_nodes = _front_rear_nodes(bridle_nodes_data)
+        depower_length = _distance_to_bridle_point(
+            bridle_point_node, node_coordinates, front_nodes
+        )
+        steering_length = _distance_to_bridle_point(
+            bridle_point_node, node_coordinates, rear_nodes
+        )
+    else: # Fallback
+        depower_length = 0.001
+        steering_length = 0.001
+
+    max_bridle_lines_diameter = max(line[3] for line in bridle_lines)
+
     bridle_lines_data += [
-        ["steering_tape", 0.001, 1.0, "dyneema", "noncompressive", 970],
-        ["depower_tape", 0.001, 1.0, "dyneema", "noncompressive", 970],
+        ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
+        ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
     ]
 
     return {
