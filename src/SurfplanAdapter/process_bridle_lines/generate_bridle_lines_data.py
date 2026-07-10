@@ -59,8 +59,6 @@ def _front_rear_nodes(bridle_nodes_data):
     )
 
     front_nodes, rear_nodes = lowest_nodes[:2], lowest_nodes[2:]
-    print(f'--------------> front_nodes: {front_nodes}')
-    print(f'--------------> rear_nodes: {rear_nodes}')
     return node_coordinates, front_nodes, rear_nodes
 
 def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
@@ -74,8 +72,7 @@ def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
         np.linalg.norm(np.asarray(node_coordinates[n], dtype=float) - bridle_point_node)
         for n in node_ids
     ]
-
-    print(f'--------------> distances: {distances}')
+    
     return np.mean(distances)
 
 def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
@@ -123,9 +120,15 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     # front/rear-most bridle nodes (see generate_bridle_connections_data.main).
     if bridle_nodes_data is not None and bridle_point_node is not None:
         node_coordinates, front_nodes, rear_nodes = _front_rear_nodes(bridle_nodes_data)
+        print("DEBUG bridle_point_node:", bridle_point_node)
+        print("DEBUG node_coordinates shape:", len(node_coordinates))
+        print("DEBUG front_nodes:", front_nodes)
+        print("DEBUG rear_nodes:", rear_nodes)
         depower_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, front_nodes
         )
+        print("DEBUG depower_length:", depower_length)
+        print("DEBUG steering_length:", steering_length)
         steering_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, rear_nodes
         )
@@ -133,7 +136,7 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
         depower_length = 0.001
         steering_length = 0.001
 
-    max_bridle_lines_diameter = max(line[3] for line in bridle_lines)
+    max_bridle_lines_diameter = max(line[2] for line in bridle_lines)
 
     bridle_lines_data += [
         ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
