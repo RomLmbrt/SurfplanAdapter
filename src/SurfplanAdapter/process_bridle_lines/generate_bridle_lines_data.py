@@ -118,6 +118,8 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     # --- inject control tapes automatically ---
     # steering_tape / depower_tape connect bridle_point_node (the KCU) to the
     # front/rear-most bridle nodes (see generate_bridle_connections_data.main).
+    print(f'-------> bridle_nodes_data: {bridle_nodes_data}')
+    print(f'-------> bridle_point_node: {bridle_point_node}')
     if bridle_nodes_data is not None and bridle_point_node is not None:
         node_coordinates, front_nodes, rear_nodes = _front_rear_nodes(bridle_nodes_data)
         depower_length = _distance_to_bridle_point(
