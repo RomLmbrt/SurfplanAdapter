@@ -580,8 +580,7 @@ def main(
         bridle_point_node = [x_lowest, 0.0, z_lowest] # Centered
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
-    print(f'-------> bridle_nodes: {bridle_nodes}')
-    print(f'-------> bridle_point_node: {bridle_point_node}')
+
     bridle_lines_yaml = generate_bridle_lines_data.main(
         bridle_lines,
         bridle_nodes,

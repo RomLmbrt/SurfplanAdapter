@@ -48,7 +48,9 @@ def _front_rear_nodes(bridle_nodes_data):
     attachment nodes, so both modules always agree on which nodes are
     "front" (depower) and "rear" (steering).
     """
-    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data["data"]}
+    import copy
+    bridle_nodes_data = copy.deepcopy(bridle_nodes_data["data"])
+    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data}
 
     lowest_nodes = sorted(  # 4 lowest bridle nodes (2 front, 2 rear) by z
         node_coordinates, key=lambda n: node_coordinates[n][2]
