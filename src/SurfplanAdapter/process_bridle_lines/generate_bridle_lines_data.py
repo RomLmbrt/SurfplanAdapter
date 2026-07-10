@@ -48,9 +48,7 @@ def _front_rear_nodes(bridle_nodes_data):
     attachment nodes, so both modules always agree on which nodes are
     "front" (depower) and "rear" (steering).
     """
-    import copy
-    bridle_nodes_data = copy.deepcopy(bridle_nodes_data["data"])
-    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data}
+    node_coordinates = {n[0]: n[1:4] for n in bridle_nodes_data["data"]}
 
     lowest_nodes = sorted(  # 4 lowest bridle nodes (2 front, 2 rear) by z
         node_coordinates, key=lambda n: node_coordinates[n][2]
@@ -70,12 +68,11 @@ def _distance_to_bridle_point(bridle_point_node, node_coordinates, node_ids):
     to the KCU point should already match closely; averaging just guards
     against small asymmetries instead of arbitrarily picking one side.
     """
-    point = np.asarray(bridle_point_node, dtype=float)
     distances = [
-        np.linalg.norm(np.asarray(node_coordinates[n], dtype=float) - point)
+        np.linalg.norm(np.asarray(node_coordinates[n], dtype=float) - bridle_point_node)
         for n in node_ids
     ]
-    return float(np.mean(distances))
+    return np.mean(distances)
 
 def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     """
@@ -89,6 +86,8 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     Returns:
         dict: Bridle lines data formatted for YAML
     """
+    print(f'-------> bridle_nodes_data begin: {bridle_nodes_data}')
+    print(f'-------> bridle_point_node begin: {bridle_point_node}')
     bridle_lines_data = []
 
     for i, bridle_line in enumerate(bridle_lines):
