@@ -36,8 +36,10 @@ def main(bridle_lines):
         )
         node_id += 1
 
-    # Add symmetrical nodes with positive y
+    # Add symmetrical nodes with positive y, skipping points already on the symmetry plane
     for point in unique_points:
+        if point[1] == 0.0:
+            continue
         bridle_nodes_data.append(
             [
                 node_id,
