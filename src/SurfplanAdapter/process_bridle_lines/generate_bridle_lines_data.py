@@ -129,13 +129,9 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     else: # Fallback
         depower_length = 0.001
         steering_length = 0.001
-        print(f'---------> mistake')
 
     max_bridle_lines_diameter = max(line[3] for line in bridle_lines)
-    print(f'----------> steering_length: {steering_length}')
-    print(f'----------> depower_length: {depower_length}')
-    print(f'----------> max_diameter: {max_bridle_lines_diameter}')
-    
+
     bridle_lines_data += [
         ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
         ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
