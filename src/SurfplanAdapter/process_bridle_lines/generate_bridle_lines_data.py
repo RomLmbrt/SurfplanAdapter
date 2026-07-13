@@ -120,14 +120,11 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     # front/rear-most bridle nodes (see generate_bridle_connections_data.main).
     if bridle_nodes_data is not None and bridle_point_node is not None:
         node_coordinates, front_nodes, rear_nodes = _front_rear_nodes(bridle_nodes_data)
-        print("DEBUG bridle_point_node:", bridle_point_node)
-        print("DEBUG node_coordinates shape:", len(node_coordinates))
-        print("DEBUG front_nodes:", front_nodes)
-        print("DEBUG rear_nodes:", rear_nodes)
+
         depower_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, front_nodes
         )
-        print("DEBUG depower_length:", depower_length)
+        
         steering_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, rear_nodes
         )
@@ -141,8 +138,6 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
         ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
         ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
     ]
-
-    print(f'bridle_lines_data[-1]={bridle_lines_data[-1]}')
 
     return {
         "headers": ["name", "l0", "d", "material", "linktype", "density"],
