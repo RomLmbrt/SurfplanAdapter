@@ -615,10 +615,11 @@ def main(
     #     )
 
     # Save to YAML
+    print("Saving:", yaml_file_path)
     utils.save_to_yaml(yaml_data, yaml_file_path)
 
     # Create the extended Surfplan file with all sections
-    create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_lines, yaml_file_path)
+    # create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_lines, yaml_file_path)
 
 
 def _calculate_le_diameter(rib):
