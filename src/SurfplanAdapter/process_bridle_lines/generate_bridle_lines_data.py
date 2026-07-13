@@ -124,7 +124,7 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
         depower_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, front_nodes
         )
-        
+
         steering_length = _distance_to_bridle_point(
             bridle_point_node, node_coordinates, rear_nodes
         )
@@ -135,8 +135,8 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
     max_bridle_lines_diameter = max(line[2] for line in bridle_lines)
 
     bridle_lines_data += [
-        ["steering_tape", steering_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
-        ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
+        ["steering_tape", float(steering_length), float(max_bridle_lines_diameter), "dyneema", "noncompressive", 970],
+        ["depower_tape", float(depower_length), float(max_bridle_lines_diameter), "dyneema", "noncompressive", 970],
     ]
 
     return {
