@@ -581,11 +581,13 @@ def main(
     else:
         bridle_point_node = [0.0, 0.0, 0.0]
 
+    print(f'before generate_bridle_lines_data.main: bride_point_node={bridle_point_node} & bridle_nodes={bridle_nodes}')
     bridle_lines_yaml = generate_bridle_lines_data.main(
         bridle_lines,
         bridle_nodes, 
         bridle_point_node, 
     )
+    print(f'after generate_bridle_lines_data.main: bride_point_node={bridle_point_node} & bridle_nodes={bridle_nodes}')
 
     # Compose the final yaml_data dictionary
     struc_geometry_dict = {
@@ -615,11 +617,10 @@ def main(
     #     )
 
     # Save to YAML
-    print("Saving:", yaml_file_path)
     utils.save_to_yaml(yaml_data, yaml_file_path)
 
     # Create the extended Surfplan file with all sections
-    # create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_lines, yaml_file_path)
+    create_struc_geometry_all_in_surfplan_yaml(ribs_data, bridle_lines, yaml_file_path)
 
 
 def _calculate_le_diameter(rib):

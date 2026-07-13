@@ -142,6 +142,8 @@ def main(bridle_lines, bridle_nodes_data=None, bridle_point_node=None):
         ["depower_tape", depower_length, max_bridle_lines_diameter, "dyneema", "noncompressive", 970],
     ]
 
+    print(f'bridle_lines_data[-1]={bridle_lines_data[-1]}')
+
     return {
         "headers": ["name", "l0", "d", "material", "linktype", "density"],
         "data": bridle_lines_data,
