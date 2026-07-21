@@ -18,10 +18,38 @@ from SurfplanAdapter.utils import (
 from SurfplanAdapter.calculate_cg_and_inertia import compute_structural_node_masses
 
 
-def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
+_DEFAULT_MATERIALS = {
+    "dyneema": {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    },
+    "DC200": {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    },
+    "DC500": {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    },
+    "D-Pro 3": {
+        "density": 1717,  # [kg/m^3]
+        "youngs_modulus": 10000000000,  # [Pa]
+        "damping_per_stiffness": 0.0,  # [/s]
+    },
+}
+
+
+def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict, materials=None):
     """
     Transform the structural geometry dict to the desired YAML format.
     Adds general, mass, and material properties sections, then appends all geometry data.
+
+    `materials`, if given, overrides the default (placeholder) material property
+    block with a caller-supplied dict of {material_name: {density, youngs_modulus,
+    damping_per_stiffness}} -- e.g. sourced from a real material database upstream.
     """
     yaml_data = {}
 
@@ -40,26 +68,8 @@ def transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict):
     # Material properties section
     yaml_data["   "] = None
     yaml_data["## Material properties"] = None
-    yaml_data["dyneema"] = {
-        "density": 1717,  # [kg/m^3]
-        "youngs_modulus": 10000000000,  # [Pa]
-        "damping_per_stiffness": 0.0,  # [/s]
-    }
-    yaml_data["DC200"] = {
-        "density": 1717,  # [kg/m^3]
-        "youngs_modulus": 10000000000,  # [Pa]
-        "damping_per_stiffness": 0.0,  # [/s]
-    }
-    yaml_data["DC500"] = {
-        "density": 1717,  # [kg/m^3]
-        "youngs_modulus": 10000000000,  # [Pa]
-        "damping_per_stiffness": 0.0,  # [/s]
-    }
-    yaml_data["D-Pro 3"] = {
-        "density": 1717,  # [kg/m^3]
-        "youngs_modulus": 10000000000,  # [Pa]
-        "damping_per_stiffness": 0.0,  # [/s]
-    }
+    for name, props in (materials or _DEFAULT_MATERIALS).items():
+        yaml_data[name] = props
 
     # Wing section
     yaml_data["   "] = None
@@ -263,6 +273,7 @@ def main(
     sensor_mass=0.0,
     mid_span_valve_weight=0.0,
     strut_tube_weight=0.0,
+    materials=None,
 ):
     yaml_file_path = Path(yaml_file_path.parent / "struc_geometry.yaml")
 
@@ -599,7 +610,9 @@ def main(
     }
 
     ### now we need to transform all this to the correct yaml format
-    yaml_data = transform_struc_geometry_dict_to_yaml_format(struc_geometry_dict)
+    yaml_data = transform_struc_geometry_dict_to_yaml_format(
+        struc_geometry_dict, materials=materials
+    )
 
     # # Add bridle data if available
     # if len(bridle_lines) > 0:
