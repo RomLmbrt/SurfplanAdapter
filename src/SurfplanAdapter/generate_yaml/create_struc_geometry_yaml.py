@@ -291,21 +291,25 @@ def main(
             ]
         )
 
-    # Center panel
+    # Center: a panel across the symmetry plane when the station count is even,
+    # else the station that sits on the plane, which only has its strut.
     center_idx = n_panels // 2
     le_c = 2 * center_idx + 1
     te_c = 2 * center_idx + 2
-    le_next_c = 2 * (center_idx + 1) + 1
-    te_next_c = 2 * (center_idx + 1) + 2
-    wing_connections["data"].extend(
-        [
-            [f"strut_{center_idx+1}", le_c, te_c],
-            [f"le_{center_idx+1}", le_c, le_next_c],
-            [f"te_{center_idx+1}", te_c, te_next_c],
-            [f"dia_{center_idx+1}a", le_c, te_next_c],
-            [f"dia_{center_idx+1}b", te_c, le_next_c],
-        ]
-    )
+    if n_panels % 2:
+        le_next_c = 2 * (center_idx + 1) + 1
+        te_next_c = 2 * (center_idx + 1) + 2
+        wing_connections["data"].extend(
+            [
+                [f"strut_{center_idx+1}", le_c, te_c],
+                [f"le_{center_idx+1}", le_c, le_next_c],
+                [f"te_{center_idx+1}", te_c, te_next_c],
+                [f"dia_{center_idx+1}a", le_c, te_next_c],
+                [f"dia_{center_idx+1}b", te_c, le_next_c],
+            ]
+        )
+    else:
+        wing_connections["data"].append([f"strut_{center_idx+1}", le_c, te_c])
 
     # Right side panels (mirror)
     for i in range(center_idx + 1, n_panels + 1):
