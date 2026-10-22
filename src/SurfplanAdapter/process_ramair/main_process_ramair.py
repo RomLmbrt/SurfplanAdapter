@@ -334,6 +334,12 @@ def _as_list(v):
     return [float(x) for x in np.asarray(v, dtype=float)]
 
 
+def _write_yaml(path, data):
+    """UTF-8 with LF line endings whatever the platform."""
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        yaml.safe_dump(data, f, sort_keys=False)
+
+
 def main(surfplan_txt_file_path, profile_load_dir, output_dir, reynolds=1.5e6,
          sail_start_x=0.50, sail_thickness=0.004, n_profile_points=200,
          keep_monotonic_span=True, mass_model=None):
@@ -363,8 +369,10 @@ def main(surfplan_txt_file_path, profile_load_dir, output_dir, reynolds=1.5e6,
         source = profile_load_dir / f"prof_{airfoil_id}.dat"
         profiles[airfoil_id] = regularize_profile(source, sail_start_x, sail_thickness,
                                                   n_profile_points)
-        np.savetxt(output_dir / "profiles" / f"prof_{airfoil_id}.dat", profiles[airfoil_id],
-                   fmt="%.7f", header=f"prof_{airfoil_id}", comments="")
+        with open(output_dir / "profiles" / f"prof_{airfoil_id}.dat", "w",
+                  encoding="utf-8", newline="\n") as f:
+            np.savetxt(f, profiles[airfoil_id], fmt="%.7f", header=f"prof_{airfoil_id}",
+                       comments="")
         box[airfoil_id] = _as_list(box_closure_station(source))
 
     sections = sorted(kept, key=lambda rib: -rib["LE"][1])
@@ -380,7 +388,7 @@ def main(surfplan_txt_file_path, profile_load_dir, output_dir, reynolds=1.5e6,
                       {"dat_file_path": f"profiles/prof_{airfoil_id}.dat"}]
                      for airfoil_id in ids]},
     }
-    (output_dir / "aero_geometry.yaml").write_text(yaml.safe_dump(aero, sort_keys=False))
+    _write_yaml(output_dir / "aero_geometry.yaml", aero)
 
     wing = {
         "source": Path(surfplan_txt_file_path).name,
@@ -401,5 +409,5 @@ def main(surfplan_txt_file_path, profile_load_dir, output_dir, reynolds=1.5e6,
         mass, cg = fabric_mass_cg(kept, profiles, **mass_model)
         wing["fabric_mass"] = mass
         wing["fabric_cg"] = _as_list(cg)
-    (output_dir / "ramair_wing.yaml").write_text(yaml.safe_dump(wing, sort_keys=False))
+    _write_yaml(output_dir / "ramair_wing.yaml", wing)
     return wing
