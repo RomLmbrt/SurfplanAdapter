@@ -308,11 +308,18 @@ def main(
                 [f"dia_{center_idx+1}b", te_c, le_next_c],
             ]
         )
+        # The centre panel already ties station center_idx + 1 to the left half:
+        # only its strut is left for the right side.
+        wing_connections["data"].append(
+            [f"strut_{center_idx+1}", le_next_c, te_next_c]
+        )
+        first_right = center_idx + 2
     else:
         wing_connections["data"].append([f"strut_{center_idx+1}", le_c, te_c])
+        first_right = center_idx + 1
 
     # Right side panels (mirror)
-    for i in range(center_idx + 1, n_panels + 1):
+    for i in range(first_right, n_panels + 1):
         mirror_panel = n_panels - i + 1
         le_i = 2 * i + 1
         te_i = 2 * i + 2
